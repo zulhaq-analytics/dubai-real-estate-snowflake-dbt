@@ -1,0 +1,99 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: Calendar dimension. Grain - one row per day, 1960-01-01 to 2035-12-31.
+    columns:
+      - name: date_day
+        data_tests: [unique, not_null]
+
+  - name: dim_area
+    description: Dubai community areas. Grain - one row per area.
+    columns:
+      - name: area_id
+        data_tests: [unique, not_null]
+
+  - name: dim_developer
+    description: Developers registered with DLD. Grain - one row per developer.
+    columns:
+      - name: developer_id
+        data_tests: [unique, not_null]
+
+  - name: dim_project
+    description: >
+      Development projects with developer attached. Grain - one row per project.
+      Facts link on project_number (transactions and rents carry the number, not the id).
+    columns:
+      - name: project_id
+        data_tests: [unique, not_null]
+      - name: project_number
+        data_tests:
+          - unique:
+              config:
+                severity: warn
+
+  - name: dim_unit
+    description: Registered units with building, land, project, developer and area. Grain - one row per unit.
+    columns:
+      - name: unit_property_id
+        data_tests: [unique, not_null]
+
+  - name: fct_transactions
+    description: >
+      Sale, mortgage and gift transactions. Grain - one row per transaction.
+      Use is_sale and is_price_valid for market price analysis.
+    columns:
+      - name: transaction_id
+        data_tests: [unique, not_null]
+      - name: transaction_date
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+              config:
+                severity: warn
+      - name: area_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_area')
+                field: area_id
+              config:
+                severity: warn
+
+  - name: fct_rent_contracts
+    description: >
+      Ejari rent contract lines. Grain - one row per contract line.
+      Use is_new_contract, is_residential, is_single_property and is_rent_valid for market rent analysis.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [contract_id, line_number]
+    columns:
+      - name: contract_start_date
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+              config:
+                severity: warn
+      - name: area_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_area')
+                field: area_id
+              config:
+                severity: warn
+
+  - name: mart_area_rental_yield
+    description: >
+      Residential gross rental yield by area and year - median rent per sqm (new, valid,
+      single-property contracts) divided by median sale price per sqm (valid sales).
+      Yield is shown only when both sides have at least 30 records.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [area_id, year]
