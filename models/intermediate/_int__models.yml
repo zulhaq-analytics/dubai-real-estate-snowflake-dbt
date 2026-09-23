@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: int_transactions__enriched
+    description: >
+      Transactions with business logic added - bedrooms and room category, sale and
+      off-plan flags, price per sqm, and a price validity flag (price >= 10,000 AED,
+      area 10-100,000 sqm). Grain - one row per transaction.
+    columns:
+      - name: transaction_id
+        data_tests: [unique, not_null]
+      - name: room_category
+        data_tests: [not_null]
+
+  - name: int_rent_contracts__enriched
+    description: >
+      Rent contract lines with annualized rent, rent per sqm, new/renewal, residential
+      and single-property flags, and a rent validity flag (annual rent >= 1,000 AED,
+      area 10-100,000 sqm, contract >= 28 days). Grain - one row per contract line.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [contract_id, line_number]
+
+  - name: int_units__hierarchy
+    description: >
+      Every registered unit with its building, land, project, developer and area.
+      Left joins keep all units; has_* flags show which links resolved
+      (about 53% building, 52% land, 31% project in the Sep 2026 load).
+      Grain - one row per unit.
+    columns:
+      - name: unit_property_id
+        data_tests: [unique, not_null]
+      - name: room_category
+        data_tests: [not_null]
