@@ -1,0 +1,26 @@
+# Dubai real estate analytics — DLD open data on Snowflake
+name: 'dubai_real_estate'
+version: '1.0.0'
+config-version: 2
+
+# Profile used by dbt (dbt Cloud manages the connection for you)
+profile: 'default'
+
+# Where dbt looks for each type of file
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"   # compiled SQL goes here
+clean-targets:          # folders removed by `dbt clean`
+  - "target"
+  - "dbt_packages"
+
+# Model settings by folder
+models:
+  dubai_real_estate:
+    example:
+      +materialized: table
