@@ -5,7 +5,10 @@
 #}
 
 {% macro to_date_safe(col) -%}
-    TRY_TO_TIMESTAMP_NTZ({{ col }})::DATE
+    CASE
+        WHEN TRY_TO_TIMESTAMP_NTZ({{ col }})::DATE BETWEEN '1960-01-01' AND '2035-12-31'
+            THEN TRY_TO_TIMESTAMP_NTZ({{ col }})::DATE
+    END
 {%- endmacro %}
 
 {% macro to_timestamp_safe(col) -%}
