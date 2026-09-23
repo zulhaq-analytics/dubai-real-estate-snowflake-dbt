@@ -1,0 +1,41 @@
+version: 2
+
+sources:
+  - name: dld
+    description: >
+      Dubai Land Department open data, loaded as-is from CSV into Snowflake.
+      All columns are text; typing and cleaning happen in the staging layer.
+      _SOURCE_FILE and _LOADED_AT record the file and load time of each row.
+    database: RAW
+    schema: DLD
+    tables:
+      - name: transactions
+        description: Registered sale, mortgage and gift transactions.
+      - name: rent_contracts
+        description: Ejari-registered rental contracts.
+      - name: units
+        description: Registered freehold real estate units.
+      - name: buildings
+        description: Building and property project records.
+      - name: land_registry
+        description: Registered land parcels.
+      - name: projects
+        description: Real estate development projects.
+      - name: developers
+        description: Developers registered with DLD.
+      - name: brokers
+        description: Licensed real estate brokers.
+      - name: offices
+        description: Licensed real estate brokerage offices.
+      - name: valuation
+        description: Official DLD property valuations.
+      - name: oa_service_charges
+        description: Owners association service charges.
+      - name: lkp_areas
+        description: Dubai community areas (lookup).
+      - name: lkp_market_types
+        description: Real estate market types (lookup).
+      - name: lkp_transaction_groups
+        description: Transaction groups (lookup).
+      - name: lkp_transaction_procedures
+        description: Transaction procedures (lookup).
