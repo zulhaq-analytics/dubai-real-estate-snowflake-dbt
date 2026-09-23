@@ -1,0 +1,17 @@
+snapshots:
+  - name: snap_projects
+    description: >
+      Type-2 history of project status and progress. A new row is written whenever
+      status, completion percentage or key dates change. The first run (Sep 2026)
+      is the baseline.
+    relation: ref('stg_dld__projects')
+    config:
+      schema: snapshots
+      unique_key: project_id
+      strategy: check
+      check_cols:
+        - project_status
+        - percent_completed
+        - project_end_date
+        - completion_date
+        - cancellation_date

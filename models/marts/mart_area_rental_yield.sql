@@ -2,9 +2,11 @@ with sales as (
 
     select
         area_id,
-        transaction_year                      as year,
-        count(*)                              as sales_count,
-        median(price_per_sqm_aed)             as median_price_per_sqm_aed
+        transaction_year                                            as year,
+        count(*)                                                    as sales_count,
+        median(price_per_sqm_aed)                                   as median_price_per_sqm_aed,
+        count_if(not is_off_plan)                                   as ready_sales_count,
+        median(case when not is_off_plan then price_per_sqm_aed end) as median_ready_price_per_sqm_aed
     from {{ ref('fct_transactions') }}
     where is_sale
       and is_price_valid
@@ -17,9 +19,9 @@ rents as (
 
     select
         area_id,
-        start_year                            as year,
-        count(*)                              as rent_count,
-        median(rent_per_sqm_aed)              as median_rent_per_sqm_aed
+        start_year                                                  as year,
+        count(*)                                                    as rent_count,
+        median(rent_per_sqm_aed)                                    as median_rent_per_sqm_aed
     from {{ ref('fct_rent_contracts') }}
     where is_new_contract
       and is_rent_valid
@@ -32,10 +34,12 @@ rents as (
 combined as (
 
     select
-        coalesce(s.area_id, r.area_id)        as area_id,
-        coalesce(s.year, r.year)              as year,
+        coalesce(s.area_id, r.area_id)                              as area_id,
+        coalesce(s.year, r.year)                                    as year,
         s.sales_count,
         s.median_price_per_sqm_aed,
+        s.ready_sales_count,
+        s.median_ready_price_per_sqm_aed,
         r.rent_count,
         r.median_rent_per_sqm_aed
     from sales s
@@ -47,16 +51,23 @@ combined as (
 
 select
     c.area_id,
+    a.area_display_name,
     a.area_name_en,
     c.year,
     c.sales_count,
     c.median_price_per_sqm_aed,
+    c.ready_sales_count,
+    c.median_ready_price_per_sqm_aed,
     c.rent_count,
     c.median_rent_per_sqm_aed,
     case
         when c.sales_count >= 30 and c.rent_count >= 30
             then c.median_rent_per_sqm_aed / nullif(c.median_price_per_sqm_aed, 0)
-    end                                       as gross_rental_yield
+    end                                                             as gross_rental_yield,
+    case
+        when c.ready_sales_count >= 30 and c.rent_count >= 30
+            then c.median_rent_per_sqm_aed / nullif(c.median_ready_price_per_sqm_aed, 0)
+    end                                                             as gross_rental_yield_ready
 from combined c
 left join {{ ref('dim_area') }} a
     on c.area_id = a.area_id
