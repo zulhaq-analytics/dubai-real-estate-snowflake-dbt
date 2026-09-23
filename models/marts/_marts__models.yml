@@ -8,10 +8,15 @@ models:
         data_tests: [unique, not_null]
 
   - name: dim_area
-    description: Dubai community areas. Grain - one row per area.
+    description: >
+      Dubai community areas with a friendly display name. community_name is the dominant
+      master community (at least 50% of the area's transactions); otherwise the official
+      DLD name is used. Grain - one row per area.
     columns:
       - name: area_id
         data_tests: [unique, not_null]
+      - name: area_display_name
+        data_tests: [not_null]
 
   - name: dim_developer
     description: Developers registered with DLD. Grain - one row per developer.
@@ -88,11 +93,63 @@ models:
               config:
                 severity: warn
 
+  - name: fct_service_charges
+    description: >
+      Residential owners association service charges. Grain - one row per project and budget year.
+      rate_aed_per_sqft is the sum of all service categories; valid rates are 1-100 AED per sqft per year.
+      DLD publishes meaningful coverage for 2019-2023 only. is_latest_valid_year marks each project's
+      most recent valid rate, used as its current rate.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [project_id, budget_year]
+    columns:
+      - name: project_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_project')
+                field: project_id
+              config:
+                severity: warn
+
+  - name: fct_valuations
+    description: >
+      Official DLD property valuations. Grain - one row per valuation procedure.
+      value_per_sqm_aed compares directly with sale price per sqm; use is_value_valid for analysis.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [procedure_year, procedure_number]
+          config:
+            severity: warn
+    columns:
+      - name: valuation_date
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+              config:
+                severity: warn
+      - name: area_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_area')
+                field: area_id
+              config:
+                severity: warn
+
   - name: mart_area_rental_yield
     description: >
-      Residential gross rental yield by area and year - median rent per sqm (new, valid,
-      single-property contracts) divided by median sale price per sqm (valid sales).
-      Yield is shown only when both sides have at least 30 records.
+      Residential rental yield by area and year.
+      Gross yield - median rent per sqm (new, valid, single-property contracts) divided by median
+      sale price per sqm (valid sales). Ready yield uses existing-property sales only, excluding
+      off-plan price premiums. Net ready yield subtracts the area's median current service charge
+      per sqm (each project's latest valid rate, at least 5 projects). Yields are shown only when
+      each side has at least 30 records.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
