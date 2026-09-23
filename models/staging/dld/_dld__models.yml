@@ -1,0 +1,219 @@
+version: 2
+
+models:
+  - name: stg_dld__areas
+    description: Dubai community areas (lookup). Grain - one row per area.
+    columns:
+      - name: area_id
+        data_tests: [unique, not_null]
+
+  - name: stg_dld__market_types
+    description: Real estate market types (off-plan / ready). Grain - one row per type.
+    columns:
+      - name: market_type_id
+        data_tests: [unique, not_null]
+
+  - name: stg_dld__transaction_groups
+    description: Transaction groups (sales, mortgages, gifts). Grain - one row per group.
+    columns:
+      - name: trans_group_id
+        data_tests: [unique, not_null]
+
+  - name: stg_dld__transaction_procedures
+    description: >
+      Detailed transaction procedures. Grain - one row per group and procedure.
+      The same procedure_id can exist in more than one group, so joins must use both columns.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [trans_group_id, procedure_id]
+    columns:
+      - name: procedure_id
+        data_tests: [not_null]
+      - name: trans_group_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_dld__transaction_groups')
+                field: trans_group_id
+              config:
+                severity: warn
+
+  - name: stg_dld__developers
+    description: Developers registered with DLD. Grain - one row per developer.
+    columns:
+      - name: developer_id
+        data_tests: [unique, not_null]
+
+  - name: stg_dld__offices
+    description: >
+      Licensed real estate brokerage offices. Grain - one row per office and activity type
+      (an office licensed for several activities appears once per activity).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [office_id, activity_type_id]
+    columns:
+      - name: office_id
+        data_tests: [not_null]
+
+  - name: stg_dld__brokers
+    description: >
+      Licensed real estate brokers. Grain - one row per broker and office
+      (a broker who moved offices appears once per office).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [broker_id, office_id]
+    columns:
+      - name: broker_id
+        data_tests: [not_null]
+      - name: office_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_dld__offices')
+                field: office_id
+              config:
+                severity: warn
+
+  - name: stg_dld__projects
+    description: Real estate development projects. Grain - one row per project.
+    columns:
+      - name: project_id
+        data_tests: [unique, not_null]
+      - name: developer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_dld__developers')
+                field: developer_id
+              config:
+                severity: warn
+      - name: area_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_dld__areas')
+                field: area_id
+              config:
+                severity: warn
+
+  - name: stg_dld__land_registry
+    description: >
+      Registered land. Grain - one row per land property (property_id).
+      parcel_id is blank for about 12% of rows in the source and repeats across sub-plots,
+      so it is an attribute, not the key.
+    columns:
+      - name: property_id
+        data_tests: [unique, not_null]
+
+  - name: stg_dld__buildings
+    description: Registered buildings. Grain - one row per building property.
+    columns:
+      - name: property_id
+        data_tests: [unique, not_null]
+      - name: parcel_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_dld__land_registry')
+                field: parcel_id
+              config:
+                severity: warn
+
+  - name: stg_dld__units
+    description: Registered freehold units. Grain - one row per unit property.
+    columns:
+      - name: property_id
+        data_tests: [unique, not_null]
+      - name: parent_property_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_dld__buildings')
+                field: property_id
+              config:
+                severity: warn
+
+  - name: stg_dld__transactions
+    description: Registered sale, mortgage and gift transactions. Grain - one row per transaction.
+    columns:
+      - name: transaction_id
+        data_tests: [unique, not_null]
+      - name: transaction_date
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: actual_worth_aed
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: procedure_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_dld__transaction_procedures')
+                field: procedure_id
+              config:
+                severity: warn
+      - name: area_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_dld__areas')
+                field: area_id
+              config:
+                severity: warn
+
+  - name: stg_dld__rent_contracts
+    description: Ejari rental contracts. Grain - one row per contract line.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [contract_id, line_number]
+    columns:
+      - name: contract_id
+        data_tests: [not_null]
+      - name: contract_start_date
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: annual_amount_aed
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: area_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_dld__areas')
+                field: area_id
+              config:
+                severity: warn
+
+  - name: stg_dld__valuations
+    description: Official DLD property valuations. Grain - one row per valuation procedure.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [procedure_year, procedure_number]
+          config:
+            severity: warn
+
+  - name: stg_dld__service_charges
+    description: Owners association service charges by project, budget year, category and usage.
+    columns:
+      - name: project_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_dld__projects')
+                field: project_id
+              config:
+                severity: warn
