@@ -58,6 +58,23 @@ final as (
     select
         *,
         annual_rent_aed / nullif(actual_area_sqm, 0)                   as rent_per_sqm_aed,
+                actual_area_sqm * 10.7639                                      as actual_area_sqft,
+        case
+            when actual_area_sqm is null or actual_area_sqm <= 0   then null
+            when actual_area_sqm * 10.7639 < 450                   then 'XS · ≈ Studio'
+            when actual_area_sqm * 10.7639 < 850                   then 'S · ≈ 1 BR'
+            when actual_area_sqm * 10.7639 < 1300                  then 'M · ≈ 2 BR'
+            when actual_area_sqm * 10.7639 < 1900                  then 'L · ≈ 3 BR'
+            else 'XL · ≈ 4 BR+'
+        end                                                            as size_band,
+        case
+            when actual_area_sqm is null or actual_area_sqm <= 0   then null
+            when actual_area_sqm * 10.7639 < 450                   then 1
+            when actual_area_sqm * 10.7639 < 850                   then 2
+            when actual_area_sqm * 10.7639 < 1300                  then 3
+            when actual_area_sqm * 10.7639 < 1900                  then 4
+            else 5
+        end                                                            as size_band_order,
         (
             annual_rent_aed >= 1000
             and actual_area_sqm between 10 and 100000
