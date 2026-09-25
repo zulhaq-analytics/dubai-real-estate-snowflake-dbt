@@ -9,12 +9,27 @@ developers as (
     select developer_id, developer_name_en
     from {{ ref('stg_dld__developers') }}
 
+),
+
+-- English project names: the most common name used in transactions for each project number
+english_names as (
+
+    select
+        project_number,
+        project_name_en
+    from {{ ref('stg_dld__transactions') }}
+    where project_number is not null
+      and nullif(trim(project_name_en), '') is not null
+    group by 1, 2
+    qualify row_number() over (partition by project_number order by count(*) desc) = 1
+
 )
 
 select
     p.project_id,
     p.project_number,
-    p.project_name,
+    coalesce(en.project_name_en, p.project_name)        as project_name_en,
+    p.project_name                                      as project_name_ar,
     p.project_status,
     p.project_status_label,
     p.percent_completed,
@@ -37,3 +52,5 @@ select
 from projects p
 left join developers d
     on p.developer_id = d.developer_id
+left join english_names en
+    on p.project_number = en.project_number

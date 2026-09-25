@@ -40,7 +40,7 @@ renamed as (
         {{ to_int('area_id') }}                          as area_id,
         area_name_en,
         area_name_ar,
-        project_number,
+        {{ to_int('project_number') }}                 as project_number,
         project_name_en,
         project_name_ar,
         master_project_en,
