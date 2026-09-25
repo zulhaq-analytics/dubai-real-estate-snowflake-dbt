@@ -32,6 +32,14 @@ enriched as (
 
         ejari_property_type_en,
         ejari_property_sub_type_en,
+                {{ rooms_to_bedrooms('ejari_property_sub_type_en') }}          as bedrooms,
+        {{ rooms_to_category('ejari_property_sub_type_en') }}          as room_category,
+        case {{ rooms_to_category('ejari_property_sub_type_en') }}
+            when 'Studio' then 1 when '1 BR' then 2 when '2 BR' then 3 when '3 BR' then 4
+            when '4 BR' then 5 when '5+ BR' then 6 when 'Penthouse' then 7
+            when 'Other residential' then 8 when 'Room / Staff housing' then 9
+            when 'Commercial / Other' then 10 else 11
+        end                                                            as room_order,
         ejari_bus_property_type_en,
         property_usage_en,
         (property_usage_en = 'Residential')                            as is_residential,
