@@ -16,6 +16,7 @@ select
     p.project_number,
     p.project_name,
     p.project_status,
+    p.project_status_label,
     p.percent_completed,
     p.project_start_date,
     p.project_end_date,
