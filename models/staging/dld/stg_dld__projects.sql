@@ -8,7 +8,7 @@ renamed as (
 
     select
         {{ to_int('project_id') }}                       as project_id,
-        project_number,
+        {{ to_int('project_number') }}                 as project_number,
         project_name,
         project_description_en,
         project_description_ar,
