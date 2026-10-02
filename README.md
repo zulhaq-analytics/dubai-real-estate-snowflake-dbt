@@ -1,4 +1,4 @@
-# Dubai Real Estate Analytics — Snowflake · dbt · Power BI
+# Dubai Real Estate Analytics - Snowflake · dbt · Power BI
 
 > **Status: in progress.** The data platform and dbt project are complete and running daily in production; the Power BI report is being finished. A full write-up with screenshots is coming in October 2026.
 
