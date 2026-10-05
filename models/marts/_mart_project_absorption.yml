@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: mart_project_absorption
+    description: >
+      One row per project with off-plan sales. Launch absorption = share of units sold
+      off-plan in the first 12 months after the first sale, capped at 100% because
+      off-plan resales before handover are included in DLD sales.
+    columns:
+      - name: project_number
+        tests:
+          - not_null
+          - unique
+      - name: first_sale_date
+        tests:
+          - not_null
+      - name: first_year_absorption
+        description: Share of units sold in the first 12 months (0 to 1, capped).
+      - name: months_to_half_sold
+        description: Months from first sale until off-plan sales reached half the project's units; blank if not yet reached.
+      - name: is_absorption_eligible
+        description: True for projects with 20+ units, launched 2015 or later, with at least 12 months of sales history.
