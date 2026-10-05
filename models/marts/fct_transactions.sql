@@ -9,6 +9,7 @@ select
     procedure_name_en,
     is_sale,
     is_off_plan,
+    finance_category,
     is_pre_registration,
     reg_type_en,
     property_type_en,
