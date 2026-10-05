@@ -32,6 +32,20 @@ enriched as (
         t.reg_type_id,
         t.reg_type_en,
         (t.reg_type_en ilike 'off%plan%')                              as is_off_plan,
+                case
+            when trans_group_en = 'Sales' then null
+            when trans_group_en = 'Gifts' then 'Gift'
+            when procedure_name_en in (
+                'Mortgage Registration', 'Mortgage Pre-Registration', 'Delayed Mortgage',
+                'Lease to Own Registration', 'Lease to Own Registration Pre-Registration',
+                'Delayed Lease to Own Registration', 'Delayed Sell Lease to Own Registration',
+                'Lease Finance Registration'
+            ) then 'Home finance'
+            when procedure_name_en ilike '%development%'
+              or procedure_name_en ilike '%portfolio%' then 'Developer & portfolio finance'
+            when trans_group_en = 'Mortgages' then 'Refinancing & changes'
+            else 'Other'
+        end                                                            as finance_category,
 
         t.property_type_id,
         t.property_type_en,
