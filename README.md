@@ -6,6 +6,8 @@ I used 11 years of public data from the Dubai Land Department (DLD) and built th
 
 `Snowflake` · `dbt` · `Snowflake ML` · `Power BI` · `SQL` · `DAX`
 
+**[▶ Open the live report](https://app.powerbi.com/view?r=eyJrIjoiN2FkZTRmYTQtOGY3ZC00YjA4LTg5ZTktZTY0MjY3NjVkMTc0IiwidCI6ImEyYjYxNTdiLWZlM2ItNGRlZi05OTAzLTc4YTRlMmU5NTNhYiJ9)** · [Download the PDF](report/dubai_property_prospectus.pdf)
+
 ![Cover](images/cover.png)
 
 ---
@@ -149,7 +151,7 @@ I checked every headline number on every page against Snowflake with my own SQL 
 - `report/dubai_property_prospectus.pdf`: the full report, all 11 pages
 - `images/`: report screenshots
 
-The Power BI file itself (.pbix) is 473 MB, too large for GitHub, so the PDF and model file are included instead.
+The Power BI file itself (.pbix) is 473 MB, too large for GitHub. You can explore the live report through the link at the top, or read the PDF.
 
 ---
 
