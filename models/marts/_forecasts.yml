@@ -1,0 +1,46 @@
+version: 2
+
+models:
+  - name: mart_monthly_series
+    description: "Monthly market series (sales count, median sale price per sq m, median new-rent per sq m) used as input to the Snowflake ML forecast."
+    columns:
+      - name: series
+        description: "Name of the time series."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Sales per month', 'Price per sq m', 'Rent per sq m']
+      - name: month_start
+        description: "First day of the month."
+        data_tests:
+          - not_null
+      - name: value
+        description: "Monthly value of the series."
+
+  - name: mart_forecasts
+    description: "Actuals plus 12-month Snowflake ML forecasts with 95% likely range, one row per series per month."
+    columns:
+      - name: series
+        description: "Name of the time series."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Sales per month', 'Price per sq m', 'Rent per sq m']
+      - name: month_start
+        description: "First day of the month."
+        data_tests:
+          - not_null
+      - name: actual_value
+        description: "Observed value (null for forecast rows)."
+      - name: forecast_value
+        description: "Forecast value (null for actual rows)."
+      - name: lower_bound
+        description: "Lower edge of the 95% likely range."
+      - name: upper_bound
+        description: "Upper edge of the 95% likely range."
+      - name: is_forecast
+        description: "True for forecast rows, false for actuals."
+        data_tests:
+          - not_null
