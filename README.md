@@ -145,7 +145,11 @@ I checked every headline number on every page against Snowflake with my own SQL 
 
 - `models/`: the dbt models and their tests
 - `macros/`: reusable cleaning code
+- `model/sm_dubai_property.bim`: the Power BI data model (all tables, relationships and DAX measures)
+- `report/dubai_property_prospectus.pdf`: the full report, all 11 pages
 - `images/`: report screenshots
+
+The Power BI file itself (.pbix) is 473 MB, too large for GitHub, so the PDF and model file are included instead.
 
 ---
 
