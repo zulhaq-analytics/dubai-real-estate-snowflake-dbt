@@ -21,7 +21,7 @@ I used 11 years of public data from the Dubai Land Department (DLD) and built th
 | **Storage** | DuckDB (v2). The first version ran on Snowflake |
 | **Cleaning and modeling** | dbt, rebuilt and tested automatically every day at 10 AM Dubai time |
 | **Forecast** | Python (exponential smoothing), retrained every day |
-| **Report** | 11 pages in Power BI |
+| **Report** | 11 pages in Power BI, refreshed automatically every day at 11 AM |
 
 ---
 
@@ -62,7 +62,7 @@ flowchart LR
 - It stays under DLD's limit of 60 requests a minute, gets a new login token before the old one expires, and retries when DLD's server times out.
 - When DLD changes a record's date, the same record can arrive twice. The loader keeps only the newest copy.
 - The API keys live in environment variables, never in the code.
-- A Windows scheduled task runs the loader and then dbt every morning, and writes everything to a log file.
+- A Windows scheduled task runs the loader and then dbt every morning at 10 AM, and writes everything to a log file. At 11 AM, Power BI refreshes the public report through a personal gateway on the same laptop, so the live link always shows the latest data.
 
 **dbt**
 - **Step 1, clean:** one model per dataset. I fix data types, tidy up text and correct known errors in the source.
