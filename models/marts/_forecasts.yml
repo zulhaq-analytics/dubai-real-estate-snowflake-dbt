@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: mart_monthly_series
-    description: "Monthly market series (sales count, median sale price per sq m, median new-rent per sq m) used as input to the Snowflake ML forecast."
+    description: "Monthly market series (sales count, median sale price per sq m, median new-rent per sq m) used as input to the forecast model."
     columns:
       - name: series
         description: "Name of the time series."
@@ -19,7 +19,7 @@ models:
         description: "Monthly value of the series."
 
   - name: mart_forecasts
-    description: "Actuals plus 12-month Snowflake ML forecasts with 95% likely range, one row per series per month."
+    description: "Actuals plus 12-month forecasts with a 95% likely range, one row per series per month. DuckDB target: ETS model in Python (mart_forecasts.py). Snowflake target (v1): Snowflake ML (mart_forecasts_snowflake.sql)."
     columns:
       - name: series
         description: "Name of the time series."

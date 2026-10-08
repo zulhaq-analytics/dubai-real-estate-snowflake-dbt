@@ -6,11 +6,24 @@
 #}
 
 {% macro rooms_to_bedrooms(col) -%}
+    {{ return(adapter.dispatch('rooms_to_bedrooms')(col)) }}
+{%- endmacro %}
+
+{% macro default__rooms_to_bedrooms(col) -%}
     case
         when lower(trim({{ col }})) = 'studio' then 0
         else try_to_number(
                  regexp_substr({{ col }}, '^ *([0-9]+) *(B/R|bed ?rooms?|[+] *Terrace)', 1, 1, 'ie', 1)
              )
+    end
+{%- endmacro %}
+
+{% macro duckdb__rooms_to_bedrooms(col) -%}
+    case
+        when lower(trim({{ col }})) = 'studio' then 0
+        else try_cast(
+                 nullif(regexp_extract({{ col }}, '^ *([0-9]+) *(B/R|bed ?rooms?|[+] *Terrace)', 1, 'i'), '')
+                 as bigint)
     end
 {%- endmacro %}
 

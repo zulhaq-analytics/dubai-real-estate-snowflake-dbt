@@ -1,9 +1,11 @@
-# Dubai real estate analytics — DLD open data on Snowflake
+# Dubai real estate analytics — DLD open data
+# Runs on two targets: DuckDB (v2, local, daily API data) and Snowflake (v1).
 name: 'dubai_real_estate'
 version: '1.0.0'
 config-version: 2
 
-# Profile used by dbt (dbt Cloud manages the connection for you)
+# Profile used by dbt. dbt Cloud manages the Snowflake connection;
+# locally, profiles.yml in this folder points dbt at the DuckDB file.
 profile: 'default'
 
 # Where dbt looks for each type of file
@@ -31,3 +33,13 @@ models:
     marts:
       +materialized: table
       +schema: marts
+      # v2 forecast in Python runs on DuckDB only (Snowflake uses mart_forecasts_snowflake)
+      mart_forecasts:
+        +enabled: "{{ target.type == 'duckdb' }}"
+
+vars:
+  # where the DuckDB target writes the report tables as Parquet for Power BI
+  parquet_export_path: "C:/Portfolio/dld/marts"
+
+on-run-end:
+  - "{{ export_marts_to_parquet(results) }}"

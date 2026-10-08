@@ -3,11 +3,13 @@ version: 2
 sources:
   - name: dld
     description: >
-      Dubai Land Department open data, loaded as-is from CSV into Snowflake.
-      All columns are text; typing and cleaning happen in the staging layer.
-      _SOURCE_FILE and _LOADED_AT record the file and load time of each row.
-    database: RAW
-    schema: DLD
+      Dubai Land Department open data, loaded as-is. All columns are text;
+      typing and cleaning happen in the staging layer. _SOURCE_FILE and
+      _LOADED_AT record where each row came from and when it was loaded.
+      DuckDB (v2): CSV history plus daily DLD API loads in dld.duckdb, schema raw.
+      Snowflake (v1): CSV files loaded into RAW.DLD.
+    database: "{{ 'dld' if target.type == 'duckdb' else 'RAW' }}"
+    schema: "{{ 'raw' if target.type == 'duckdb' else 'DLD' }}"
     tables:
       - name: transactions
         description: Registered sale, mortgage and gift transactions.

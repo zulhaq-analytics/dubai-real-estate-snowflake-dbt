@@ -1,6 +1,6 @@
 {{ config(materialized='table') }}
 
--- Monthly series used to train the forecaster: Jan 2015 to the last complete month.
+-- Monthly series used to train the forecast model: Jan 2015 to the last complete month.
 -- Price and rent are per sq m (Power BI converts to sq ft).
 
 with cutoff as (
@@ -59,8 +59,8 @@ rent as (
 
 )
 
-select series, month_start::timestamp_ntz as month_start, value from sales
+select series, month_start::timestamp as month_start, value from sales
 union all
-select series, month_start::timestamp_ntz, value from price
+select series, month_start::timestamp, value from price
 union all
-select series, month_start::timestamp_ntz, value from rent
+select series, month_start::timestamp, value from rent

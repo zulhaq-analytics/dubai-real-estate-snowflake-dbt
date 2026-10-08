@@ -63,7 +63,7 @@ first_year as (
 
     select
         l.project_number,
-        count_if(r.transaction_date < dateadd('month', 12, l.first_sale_date)) as sales_first_12m
+        count_if(r.transaction_date < {{ dbt.dateadd('month', 12, 'l.first_sale_date') }}) as sales_first_12m
     from launch l
     join ranked r
       on r.project_number = l.project_number
@@ -104,7 +104,7 @@ select
     (
         p.no_of_units >= 20
         and l.first_sale_date >= '2015-01-01'
-        and l.first_sale_date <= dateadd('month', -12, a.as_of_date)
+        and l.first_sale_date <= {{ dbt.dateadd('month', -12, 'a.as_of_date') }}
     )                                                                as is_absorption_eligible
 from projects p
 join launch l      on l.project_number = p.project_number

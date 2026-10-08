@@ -1,0 +1,10 @@
+# Local dbt Core connection (DuckDB, v2). No passwords: DuckDB is a file on this laptop.
+# dbt Cloud ignores this file and uses its own Snowflake connection (v1).
+default:
+  target: duckdb
+  outputs:
+    duckdb:
+      type: duckdb
+      path: "{{ env_var('DLD_DUCKDB_PATH', 'C:/Portfolio/dld/dld.duckdb') }}"
+      schema: main
+      threads: 4

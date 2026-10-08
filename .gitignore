@@ -4,3 +4,9 @@ target/
 dbt_packages/
 logs/
 dbt_internal_packages/
+
+# local DuckDB data and Parquet exports (never committed)
+*.duckdb
+*.duckdb.wal
+*.parquet
+.user.yml

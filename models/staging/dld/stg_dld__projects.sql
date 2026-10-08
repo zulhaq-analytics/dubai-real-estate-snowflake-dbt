@@ -20,9 +20,8 @@ renamed as (
             when 'FRIEZED' then 'FROZEN'          -- DLD source typo
             else project_status
         end                                              as project_status,
-        initcap ( replace (
-            case project_status when 'FRIEZED' then 'FROZEN' else project_status end,
-            '_', ' ' ) )                                 as project_status_label,
+        {{ initcap_words("replace(case project_status when 'FRIEZED' then 'FROZEN' else project_status end, '_', ' ')") }}
+                                                         as project_status_label,
         project_status_ar,
         {{ to_decimal('percent_completed', 2) }}         as percent_completed,
         {{ to_date_safe('project_start_date') }}         as project_start_date,

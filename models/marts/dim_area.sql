@@ -52,8 +52,8 @@ select
     area_name_en,
     area_name_ar,
     municipality_number,
-    {{ brand_case("initcap(lower(trim(community_name_raw)), ' -(/')") }}     as community_name,
+    {{ brand_case(initcap_words("lower(trim(community_name_raw))", "' -(/'")) }}     as community_name,
     community_share,
-    {{ brand_case("initcap(lower(trim(area_display_name_raw)), ' -(/')") }}  as area_display_name,
+    {{ brand_case(initcap_words("lower(trim(area_display_name_raw))", "' -(/'")) }}  as area_display_name,
     area_display_name_raw
 from named

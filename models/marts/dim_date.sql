@@ -13,9 +13,9 @@ select
     year(date_day)                              as year,
     quarter(date_day)                           as quarter,
     month(date_day)                             as month,
-    monthname(date_day)                         as month_name_short,
-    to_char(date_day, 'YYYY-MM')                as year_month,
+    {{ month_name_short('date_day') }}       as month_name_short,
+    {{ year_month_text('date_day') }}        as year_month,
     date_trunc('month', date_day)::date         as month_start,
-    dayofweekiso(date_day)                      as day_of_week,
+    {{ iso_day_of_week('date_day') }}        as day_of_week,
     (date_day <= current_date)                  as is_past
 from spine
