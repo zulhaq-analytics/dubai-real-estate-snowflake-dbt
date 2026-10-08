@@ -6,7 +6,7 @@ Usage (from Anaconda Prompt, inside C:\\Portfolio\\dld\\loader):
     python dld_loader.py daily --since 2026-09-01   one-time catch-up from a given date
     python dld_loader.py full projects        full reload of one dataset
     python dld_loader.py full all             full reload of all five datasets
-    python dld_loader.py daily                rolling-window refresh (transactions, valuation, rent)
+    python dld_loader.py daily                rolling-window refresh (last 30 days of sales and valuations, 60 of rent)
     python dld_loader.py daily rent_contracts refresh one dataset only
     python dld_loader.py dedupe               remove older copies of records that DLD re-dated
     python dld_loader.py status               row counts and latest dates
@@ -47,9 +47,9 @@ TOKEN_REFRESH_SECONDS = 50 * 60    # token lasts 60 minutes; refresh at 50
 MAX_ATTEMPTS = 6
 
 DATASETS = {
-    "transactions":   {"path": "dld/dld_transactions-open-api",   "date_col": "instance_date",       "window_days": 14,
+    "transactions":   {"path": "dld/dld_transactions-open-api",   "date_col": "instance_date",       "window_days": 30,
                        "key": ["transaction_id"]},
-    "valuation":      {"path": "dld/dld_valuation-open-api",      "date_col": "instance_date",       "window_days": 14,
+    "valuation":      {"path": "dld/dld_valuation-open-api",      "date_col": "instance_date",       "window_days": 30,
                        "key": ["procedure_year", "procedure_number"]},
     "rent_contracts": {"path": "dld/dld_rent_contracts-open-api", "date_col": "contract_start_date", "window_days": 60,
                        "key": ["contract_id", "line_number"]},
@@ -290,7 +290,19 @@ def window_load(con, client, name, since=None):
         return
 
     col = cfg["date_col"]
-    start = since or (date.today() - timedelta(days=cfg["window_days"])).isoformat()
+    if since:
+        start = since
+    else:
+        # Normal window: the last N days. If the last API load is older than today
+        # (laptop off, leave), stretch the window back so the gap is covered too.
+        window = timedelta(days=cfg["window_days"])
+        last_api = con.execute(f"""select max(_loaded_at)::date from raw."{name}"
+                                   where _source_file like 'api:%'""").fetchone()[0]
+        start_date = date.today() - window
+        if last_api and last_api - window < start_date:
+            start_date = last_api - window
+            log.info(f"{name}: last API load was {last_api}, so reloading from {start_date}")
+        start = start_date.isoformat()
     flt = f"{col}>='{start}'"
     t0 = time.time()
 

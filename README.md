@@ -2,9 +2,9 @@
 
 I built this project to answer the questions people ask before buying or renting in Dubai: where to buy, what it costs, what it earns, who builds, how fast new projects sell, how buyers pay, and where the market is heading.
 
-I used 11 years of public data from the Dubai Land Department (DLD) and built the full pipeline myself, from raw files to a finished Power BI report.
+I used 11 years of public data from the Dubai Land Department (DLD) and built the full pipeline myself, from raw data to a finished Power BI report. The data now updates every day straight from DLD's API.
 
-`Snowflake` · `dbt` · `Snowflake ML` · `Power BI` · `SQL` · `DAX`
+`DuckDB` · `dbt` · `Python` · `Power BI` · `SQL` · `DAX` · `Snowflake (v1)`
 
 **[▶ Open the live report](https://app.powerbi.com/view?r=eyJrIjoiN2FkZTRmYTQtOGY3ZC00YjA4LTg5ZTktZTY0MjY3NjVkMTc0IiwidCI6ImEyYjYxNTdiLWZlM2ItNGRlZi05OTAzLTc4YTRlMmU5NTNhYiJ9)** · [Download the PDF](report/dubai_property_prospectus.pdf)
 
@@ -16,24 +16,26 @@ I used 11 years of public data from the Dubai Land Department (DLD) and built th
 
 | | |
 |---|---|
-| **Data** | 15 public datasets from Dubai Land Department, downloaded in September 2026 |
+| **Data** | 15 public datasets from Dubai Land Department: history from the September 2026 downloads, new records every day from the DLD API |
 | **Size** | 1.8M property sales and transfers, 10.5M rent contracts, 2.4M registered units, 3,000+ projects |
-| **Storage** | Snowflake |
-| **Cleaning and modeling** | dbt, rebuilt automatically every day at 6 AM Dubai time |
-| **Forecast** | Snowflake ML, retrained every day |
+| **Storage** | DuckDB (v2). The first version ran on Snowflake |
+| **Cleaning and modeling** | dbt, rebuilt and tested automatically every day at 10 AM Dubai time |
+| **Forecast** | Python (exponential smoothing), retrained every day |
 | **Report** | 11 pages in Power BI |
 
 ---
 
 ## What I found (2025)
 
-- **A record year.** 214,537 sales worth AED 662.7bn, up 19.7% on 2024. Almost two out of three sales (62.5%) were off-plan.
+- **A record year.** 214,532 sales worth AED 662.7bn, up 19.7% on 2024. Almost two out of three sales (62.5%) were off-plan.
 - **Prices kept rising.** The typical home sold for AED 1,660 per sq ft, up 8.5%. Off-plan homes cost 32% more per sq ft than ready homes.
 - **Rental returns are still good.** Ready homes returned 6.4% a year before costs and 5.4% after service charges. Tenants who renewed paid 28% less per sq ft than new tenants.
 - **Lots of new supply, often late.** 865 projects with 382,625 homes are under way, and 329 of those projects are already past their planned end date.
 - **New launches are selling more slowly.** Projects launched in 2025 sold 77% of their units in the first year. For 2022 launches it was 96%.
 - **Mostly cash buyers.** For every 100 ready homes sold, only 49 home mortgages were registered.
-- **Cooling ahead.** My forecast expects prices to ease 3.3%, rents 8.1% and sales volumes 14.1% over the next 12 months.
+- **Cooling ahead.** My forecast expects prices to hold steady (-0.8%), rents to ease 8.1% and sales volumes to fall 24.2% over the next 12 months.
+
+The report updates every day, so these numbers can move a little as DLD adds and corrects records.
 
 ---
 
@@ -41,20 +43,26 @@ I used 11 years of public data from the Dubai Land Department (DLD) and built th
 
 ```mermaid
 flowchart LR
-    A[DLD public data<br/>15 datasets] --> B[(Snowflake<br/>raw data)]
-    B --> C[dbt<br/>clean]
-    C --> D[dbt<br/>apply business rules]
-    D --> E[dbt<br/>report-ready tables]
-    E --> F[Snowflake ML<br/>forecast]
-    E --> G[Power BI<br/>report]
-    F --> G
+    A[DLD API<br/>new records daily] --> C[Python loader]
+    B[DLD CSV files<br/>history] --> C
+    C --> D[(DuckDB<br/>raw data)]
+    D --> E[dbt<br/>clean]
+    E --> F[dbt<br/>apply business rules]
+    F --> G[dbt<br/>report-ready tables]
+    G --> H[Python<br/>forecast]
+    G --> I[Parquet files]
+    H --> I
+    I --> J[Power BI<br/>report]
 ```
 
-**Snowflake**
-- I keep the raw data and the cleaned data in separate databases, so the original files are never changed.
-- I set up three roles: one can only load data, one can only transform it, and one can only read the final tables. The report uses the read-only role.
-- Each type of work runs on its own warehouse, so I can see what each step costs.
-- Automated jobs log in with secure keys instead of passwords.
+**Daily loader (Python)**
+- Loads the full history once from DLD's CSV files, then only new records from the API each day. That keeps API traffic small: under 200 calls a day instead of about 15,000 for a full reload.
+- Each day it reloads the last 30 days of sales and valuations and the last 60 days of rent contracts, because DLD registers some records late and sometimes corrects their dates.
+- If the laptop is off for a while (a weekend, a holiday), the next run goes back far enough to fill the gap.
+- It stays under DLD's limit of 60 requests a minute, gets a new login token before the old one expires, and retries when DLD's server times out.
+- When DLD changes a record's date, the same record can arrive twice. The loader keeps only the newest copy.
+- The API keys live in environment variables, never in the code.
+- A Windows scheduled task runs the loader and then dbt every morning, and writes everything to a log file.
 
 **dbt**
 - **Step 1, clean:** one model per dataset. I fix data types, tidy up text and correct known errors in the source.
@@ -62,7 +70,20 @@ flowchart LR
 - **Step 3, final tables:** fact and dimension tables for the report, plus special tables for rental yield, how fast projects sell, and the forecast.
 - I wrote reusable macros for name cleaning, such as removing "LLC" or "FZE" from developer names.
 - Tests check every build for missing values, duplicates and unexpected categories.
-- Every change goes through a branch and a pull request before it reaches production.
+- After each build, dbt exports the report tables as Parquet files for Power BI.
+
+---
+
+## Two versions: Snowflake, then DuckDB
+
+I first built this on **Snowflake** with dbt Cloud (v1). When the Snowflake trial ended, I moved the warehouse to **DuckDB**, a free database that runs on my laptop, and added the daily API loader (v2). The DLD API only accepts connections from inside the UAE, so a local pipeline also suits it well.
+
+I kept one dbt project for both. Where Snowflake and DuckDB write SQL differently (type conversions, name cleaning, dates), each macro has a Snowflake version and a DuckDB version, and dbt picks the right one. The Snowflake setup is still in the code:
+
+- Raw and cleaned data in separate databases, so the original files are never changed.
+- Three roles: one can only load data, one can only transform it, and one can only read the final tables.
+- A separate warehouse for each type of work, so I could see what each step costs.
+- Automated jobs logging in with secure keys instead of passwords.
 
 ---
 
@@ -81,7 +102,7 @@ flowchart LR
 | **Where it's heading** | What will the next 12 months look like? |
 | **Area profile** | Everything about one area on one page |
 
-The titles and summaries on every page write themselves. When you change the year or the area, the headline updates, for example *"2025 ran ahead of 2024 in 11 of 12 months"*.
+The titles and summaries on every page write themselves. When you change the year or the area, the headline updates, for example *"2025 ran ahead of 2024 in 11 of 12 months"*. The header shows the date of the latest data.
 
 ![The Market](images/the-market.png)
 ![Where it's heading](images/where-its-heading.png)
@@ -101,7 +122,8 @@ Government data is messy. These issues would have given wrong numbers if I had n
 | Some prices were zero or unrealistic | AED 18.6bn of wrong sales value | Flagged them and left them out of totals, averages and returns |
 | Messy names and typos ("DownTown Dubai", "TOWN SQUARE", "FRIEZED") | Untidy and duplicated labels | Fixed the casing, keeping brand names like DAMAC and DMCC in capitals |
 | Very small samples, such as a 5-bedroom rent based on a few contracts | Misleading figures | Hid results based on fewer than 10 contracts |
-| Rent contracts with start dates as far out as 2030 | Charts running into future years | Time charts stop at the latest month with real activity |
+| Rent contracts with start dates as far out as 2205 | Charts running into future years | Ignored impossible dates and stopped time charts at the latest month with real activity |
+| DLD changed the dates of some records after I downloaded them | The same sale counted twice | The loader keeps only the newest copy of each record |
 
 ---
 
@@ -117,42 +139,41 @@ Government data is messy. These issues would have given wrong numbers if I had n
 
 ## The forecast
 
-I built monthly figures from January 2015 for three things: number of sales, typical sale price and typical new rent. dbt trains a Snowflake ML forecast on them every day and saves the next 12 months with a likely range.
+I built monthly figures from January 2015 for three things: number of sales, typical sale price and typical new rent. Every day, a Python model in dbt (exponential smoothing with a damped trend and yearly seasonality) forecasts the next 12 months with a 95% likely range. In v1 this was Snowflake ML.
 
-I tested it on the last 12 months I already knew:
+I tested it on the last 12 months I already knew (October 2025 to September 2026):
 
-| | Average error | How much to trust it |
-|---|---|---|
-| Sale price | 5.4% | High |
-| Rent | 8.5% | Medium |
-| Number of sales | 18.8% | Low |
+| | Average error | Actual value inside the likely range | How much to trust it |
+|---|---|---|---|
+| Sale price | 2.6% | 12 of 12 months | High |
+| Rent | 14.5% | 9 of 12 months | Medium |
+| Number of sales | 41.4% | 11 of 12 months | Low |
 
-The real values fell inside the likely range about 85% of the time for prices and rents, but only about half the time for number of sales. So the report treats the sales forecast as a rough guide only.
+Sales volumes swing with project launches and the wider economy, so the report treats the sales forecast as a rough guide only. The test script is in `reconcile/backtest_forecast.py`.
 
 ---
 
 ## How I checked the numbers
 
-I checked every headline number on every page against Snowflake with my own SQL queries. When a number didn't match, I traced it back to how it was defined and either fixed it or made the definition clear.
-
----
-
-## What's next
-
-**Live data from the DLD API.** I have tested DLD's API: login, connection check, and sales, rent, unit and valuation data all work. Once I get production access, a daily job will load new records automatically, and the report will stay up to date without manual downloads.
+- I checked every headline number on every page against my own SQL queries. When a number didn't match, I traced it back to how it was defined and either fixed it or made the definition clear.
+- When I moved from Snowflake to DuckDB, I ran the same 17 checks on both (sales, prices, rents, valuations, yields, absorption and table sizes, using data up to 2025). 13 matched exactly. The other 4 differed by just 4 sales, records that DLD had re-dated after my download. The query is in `reconcile/reconcile_marts.sql`.
 
 ---
 
 ## What's in this repository
 
+- `loader/dld_loader.py`: the daily DLD API loader
+- `run_daily.bat`: the daily job (loader, then dbt) that Windows runs every morning
 - `models/`: the dbt models and their tests
-- `macros/`: reusable cleaning code
-- `model/sm_dubai_property.bim`: the Power BI data model (all tables, relationships and DAX measures)
+- `macros/`: reusable cleaning code, with Snowflake and DuckDB versions
+- `reconcile/`: the Snowflake vs DuckDB checks and the forecast test
+- `profiles.yml`: the local dbt connection to DuckDB (no passwords)
+- `model/sm_dubai_property.bim`: the Power BI data model from v1 (all tables, relationships and DAX measures)
 - `report/dubai_property_prospectus.pdf`: the full report, all 11 pages
 - `images/`: report screenshots
 
-The Power BI file itself (.pbix) is 473 MB, too large for GitHub. You can explore the live report through the link at the top, or read the PDF.
+The Power BI file itself (.pbix) is 473 MB, too large for GitHub, and the data stays on my laptop. You can explore the live report through the link at the top, or read the PDF.
 
 ---
 
-*Data: Dubai Land Department public data (Dubai Pulse). This is my own independent analysis and is not linked to or approved by Dubai Land Department.*
+*Data: Dubai Land Department open data (Dubai Pulse downloads and the Dubai Data API). This is my own independent analysis and is not linked to or approved by Dubai Land Department.*
