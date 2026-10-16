@@ -47,19 +47,24 @@ _NUM = re.compile(r"(?<![\w.])(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k|m|mn|milli
 _SCALE = {"k": 1e3, "m": 1e6, "mn": 1e6, "million": 1e6, "bn": 1e9, "billion": 1e9}
 
 
-def _collect_numbers(obj, out: list) -> list:
+def _collect_numbers(obj, out: list, pct_out: list = None, key: str = "") -> list:
+    """Collect every number in a tool result. Numbers stored under percent fields
+    (names containing 'pct') also go into pct_out, so a '%' in the answer is only
+    matched against real percentages, not against counts that happen to be equal."""
     if isinstance(obj, bool):
         return out
     if isinstance(obj, (int, float)):
         out.append(abs(float(obj)))
+        if pct_out is not None and "pct" in key:
+            pct_out.append(abs(float(obj)))
     elif isinstance(obj, str):
         out.extend(_numbers_in_text(obj))
     elif isinstance(obj, dict):
-        for v in obj.values():
-            _collect_numbers(v, out)
+        for k, v in obj.items():
+            _collect_numbers(v, out, pct_out, str(k))
     elif isinstance(obj, list):
         for v in obj:
-            _collect_numbers(v, out)
+            _collect_numbers(v, out, pct_out, key)
     return out
 
 
@@ -72,23 +77,32 @@ def _numbers_in_text(text: str) -> list:
             for m in _NUM.finditer(text)]
 
 
+def _pct_in_text(text: str) -> list:
+    text = (text or "").translate(_DIGITS)
+    return [float(m.group(1).replace(",", "")) for m in _NUM.finditer(text)
+            if text[m.end(1):].lstrip()[:1] in ("%", "٪")]
+
+
 def unverified_numbers(answer: str, tool_outputs: list, question: str = "") -> list:
     """Numbers in the answer that match neither a tool result nor the question (2% tolerance).
-    Arabic-Indic digits are converted first. Only plain whole numbers (no decimal point, no % sign)
-    up to 31, and years 1990-2035, are skipped."""
+    Arabic-Indic digits are converted first. A number followed by % must match a percentage
+    field (or a percentage in the question). Only plain whole numbers (no decimal point,
+    no % sign) up to 31, and years 1990-2035, are skipped."""
     answer = (answer or "").translate(_DIGITS)
     known = _numbers_in_text(question)
+    known_pct = _pct_in_text(question)
     for o in tool_outputs:
-        _collect_numbers(o, known)
+        _collect_numbers(o, known, known_pct)
     flagged = []
     for m in _NUM.finditer(answer):
         raw_text = m.group(1)
         raw = float(raw_text.replace(",", ""))
-        followed_by_pct = answer[m.end(1):].lstrip()[:1] == "%"
+        followed_by_pct = answer[m.end(1):].lstrip()[:1] in ("%", "٪")
         if "." not in raw_text and not followed_by_pct and (raw <= 31 or 1990 <= raw <= 2035):
             continue
         v = raw * _SCALE.get((m.group(2) or "").lower(), 1)
-        if any(abs(v - k) <= max(0.02 * k, 0.05) for k in known):
+        pool = known_pct if followed_by_pct else known
+        if any(abs(v - k) <= max(0.02 * k, 0.05) for k in pool):
             continue
         flagged.append(m.group(0).strip())
     return flagged
