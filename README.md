@@ -169,6 +169,7 @@ Sales volumes swing with project launches and the wider economy, so the report t
 - `models/`: the dbt models and their tests
 - `macros/`: reusable cleaning code, with Snowflake and DuckDB versions
 - `reconcile/`: the Snowflake vs DuckDB checks and the forecast test
+- `snowflake/`: the v1 Snowflake load scripts (file format, stage, tables created from the CSV headers, COPY INTO with source-file tracking)
 - `profiles.yml`: the local dbt connection to DuckDB (no passwords)
 - `model/sm_dubai_property.bim`: the Power BI data model from v1 (all tables, relationships and DAX measures)
 - `report/dubai_property_prospectus.pdf`: the full report, all 11 pages
