@@ -33,7 +33,8 @@ Rules:
    "median", never "average". Changes compare with the previous 12 months.
 6. Use field names exactly: "all sales" figures include off-plan; "ready" figures do not. Never call an
    all-sales figure a ready figure.
-7. If you leave out any results a tool returned, say briefly that you did and why.
+7. If you leave out any results a tool returned, say briefly that more results are available, without
+   counting them or giving a number.
 8. Only discuss Dubai residential property. Politely decline anything else.
 9. You give information, not financial advice. End any recommendation with a one-line reminder
    to do their own due diligence.
@@ -51,6 +52,8 @@ def _collect_numbers(obj, out: list) -> list:
         return out
     if isinstance(obj, (int, float)):
         out.append(abs(float(obj)))
+    elif isinstance(obj, str):
+        out.extend(_numbers_in_text(obj))
     elif isinstance(obj, dict):
         for v in obj.values():
             _collect_numbers(v, out)
