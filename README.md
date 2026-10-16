@@ -21,7 +21,7 @@ I used 11 years of public data from the Dubai Land Department (DLD) and built th
 | **Storage** | DuckDB (v2). The first version ran on Snowflake |
 | **Cleaning and modeling** | dbt, rebuilt and tested automatically every day at 10 AM Dubai time |
 | **Forecast** | Python (exponential smoothing), retrained every day |
-| **Report** | 11 pages in Power BI, refreshed automatically every day at 11 AM |
+| **Report** | 11 pages in Power BI, refreshed automatically every day at 11:30 AM Dubai time |
 
 ---
 
@@ -52,17 +52,18 @@ flowchart LR
     G --> H[Python<br/>forecast]
     G --> I[Parquet files]
     H --> I
-    I --> J[Power BI<br/>report]
+    I --> K[(Oracle Object<br/>Storage)]
+    K --> J[Power BI<br/>report]
 ```
 
 **Daily loader (Python)**
 - Loads the full history once from DLD's CSV files, then only new records from the API each day. That keeps API traffic small: under 200 calls a day instead of about 15,000 for a full reload.
 - Each day it reloads the last 30 days of sales and valuations and the last 60 days of rent contracts, because DLD registers some records late and sometimes corrects their dates.
-- If the laptop is off for a while (a weekend, a holiday), the next run goes back far enough to fill the gap.
+- If a run is missed (a server outage, DLD downtime), the next run goes back far enough to fill the gap.
 - It stays under DLD's limit of 60 requests a minute, gets a new login token before the old one expires, and retries when DLD's server times out.
 - When DLD changes a record's date, the same record can arrive twice. The loader keeps only the newest copy.
 - The API keys live in environment variables, never in the code.
-- A Windows scheduled task runs the loader and then dbt every morning at 10 AM, and writes everything to a log file. At 11 AM, Power BI refreshes the public report through a personal gateway on the same laptop, so the live link always shows the latest data.
+- Everything runs on a free Oracle Cloud server in Dubai. The DLD API only accepts UAE connections, so the server sits in the UAE. Every morning at 10 AM a scheduled job runs the loader, then dbt, then uploads the report tables to Oracle Object Storage, and writes everything to a log file. At 11:30 AM, Power BI refreshes the public report straight from there, so the live link always shows the latest data.
 
 **dbt**
 - **Step 1, clean:** one model per dataset. I fix data types, tidy up text and correct known errors in the source.
@@ -76,7 +77,7 @@ flowchart LR
 
 ## Two versions: Snowflake, then DuckDB
 
-I first built this on **Snowflake** with dbt Cloud (v1). When the Snowflake trial ended, I moved the warehouse to **DuckDB**, a free database that runs on my laptop, and added the daily API loader (v2). The DLD API only accepts connections from inside the UAE, so a local pipeline also suits it well.
+I first built this on **Snowflake** with dbt Cloud (v1). When the Snowflake trial ended, I moved the warehouse to **DuckDB**, a free, file-based database, and added the daily API loader (v2). The DLD API only accepts connections from inside the UAE, so the pipeline runs on a free Oracle Cloud server in Dubai.
 
 I kept one dbt project for both. Where Snowflake and DuckDB write SQL differently (type conversions, name cleaning, dates), each macro has a Snowflake version and a DuckDB version, and dbt picks the right one. The Snowflake setup is still in the code:
 
@@ -163,7 +164,8 @@ Sales volumes swing with project launches and the wider economy, so the report t
 ## What's in this repository
 
 - `loader/dld_loader.py`: the daily DLD API loader
-- `run_daily.bat`: the daily job (loader, then dbt) that Windows runs every morning
+- `run_daily.sh`: the daily job on the Oracle Cloud server (loader, dbt, upload for Power BI)
+- `run_daily.bat`: the same daily job for Windows
 - `models/`: the dbt models and their tests
 - `macros/`: reusable cleaning code, with Snowflake and DuckDB versions
 - `reconcile/`: the Snowflake vs DuckDB checks and the forecast test
@@ -172,7 +174,7 @@ Sales volumes swing with project launches and the wider economy, so the report t
 - `report/dubai_property_prospectus.pdf`: the full report, all 11 pages
 - `images/`: report screenshots
 
-The Power BI file itself (.pbix) is 473 MB, too large for GitHub, and the data stays on my laptop. You can explore the live report through the link at the top, or read the PDF.
+The Power BI file itself (.pbix) is 473 MB, too large for GitHub, and the data lives in the pipeline, not in this repository. You can explore the live report through the link at the top, or read the PDF.
 
 ---
 
