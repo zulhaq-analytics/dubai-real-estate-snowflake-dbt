@@ -62,7 +62,7 @@ def _clean(v):
 
 
 def _rows(sql: str, params=None, limit: int = MAX_ROWS) -> list:
-    df = _con.execute(sql, params or []).df().head(limit)
+    df = _con.cursor().execute(sql, params or []).df().head(limit)
     return [{k: _clean(v) for k, v in rec.items()} for rec in df.to_dict("records")]
 
 
@@ -76,7 +76,7 @@ def resolve_area(name: str) -> dict:
     """Find Dubai areas matching a name the user typed. Call this FIRST whenever the user mentions
     an area, then use the exact area_display_name it returns in the other tools.
     name: area or community name as the user wrote it, for example 'JVC', 'marina' or 'Business Bay'."""
-    names = [r[0] for r in _con.sql(
+    names = [r[0] for r in _con.cursor().execute(
         "SELECT DISTINCT area_display_name FROM seg WHERE area_display_name IS NOT NULL").fetchall()]
     q = ALIASES.get(name.strip().lower(), name.strip().lower())
     hits = [n for n in names if q in n.lower()]
@@ -151,7 +151,7 @@ def find_segments(max_budget_aed: float, goal: str, room_category: str = "", pro
     else:
         order = "median_size_sqm DESC"
     cond = " AND ".join(where)
-    total = _con.execute(f"SELECT count(*) FROM seg WHERE {cond}", params).fetchone()[0]
+    total = _con.cursor().execute(f"SELECT count(*) FROM seg WHERE {cond}", params).fetchone()[0]
     rows = _rows(f"""
         SELECT area_display_name, property_type, room_category, ready_sales_12m, median_ready_price_aed,
                median_size_sqm, rents_12m, median_annual_rent_aed, gross_yield_ready_pct, net_yield_ready_pct,
@@ -184,7 +184,7 @@ def get_market_forecast() -> dict:
     sales per month), with the last actual value and the forecast 6 and 12 months ahead,
     including lower and upper bounds."""
     out = []
-    for (s,) in _con.sql("SELECT DISTINCT series FROM forecast ORDER BY 1").fetchall():
+    for (s,) in _con.cursor().execute("SELECT DISTINCT series FROM forecast ORDER BY 1").fetchall():
         last = _rows("""SELECT month_start, round(actual_value) AS actual_value FROM forecast
                         WHERE series = ? AND NOT is_forecast AND actual_value IS NOT NULL
                         ORDER BY month_start DESC LIMIT 1""", [s])
