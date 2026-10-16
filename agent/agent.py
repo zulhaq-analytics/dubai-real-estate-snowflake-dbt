@@ -63,14 +63,20 @@ def _collect_numbers(obj, out: list) -> list:
     return out
 
 
+_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹٬٫", "01234567890123456789,.")
+
+
 def _numbers_in_text(text: str) -> list:
+    text = (text or "").translate(_DIGITS)
     return [float(m.group(1).replace(",", "")) * _SCALE.get((m.group(2) or "").lower(), 1)
             for m in _NUM.finditer(text)]
 
 
 def unverified_numbers(answer: str, tool_outputs: list, question: str = "") -> list:
     """Numbers in the answer that match neither a tool result nor the question (2% tolerance).
-    Only plain whole numbers (no decimal point, no % sign) up to 31, and years 1990-2035, are skipped."""
+    Arabic-Indic digits are converted first. Only plain whole numbers (no decimal point, no % sign)
+    up to 31, and years 1990-2035, are skipped."""
+    answer = (answer or "").translate(_DIGITS)
     known = _numbers_in_text(question)
     for o in tool_outputs:
         _collect_numbers(o, known)
