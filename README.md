@@ -4,7 +4,7 @@ I built this project to answer the questions people ask before buying or renting
 
 I used 11 years of public data from the Dubai Land Department (DLD) and built the full pipeline myself, from raw data to a finished Power BI report. The data now updates every day straight from DLD's API.
 
-`DuckDB` · `dbt` · `Python` · `Power BI` · `SQL` · `DAX` · `Snowflake (v1)`
+`DuckDB` · `dbt` · `Python` · `Power BI` · `SQL` · `DAX` · `Oracle Cloud` · `Linux` · `Snowflake (v1)`
 
 **[▶ Open the live report](https://app.powerbi.com/view?r=eyJrIjoiN2FkZTRmYTQtOGY3ZC00YjA4LTg5ZTktZTY0MjY3NjVkMTc0IiwidCI6ImEyYjYxNTdiLWZlM2ItNGRlZi05OTAzLTc4YTRlMmU5NTNhYiJ9)** · [Download the PDF](report/dubai_property_prospectus.pdf)
 
@@ -18,7 +18,7 @@ I used 11 years of public data from the Dubai Land Department (DLD) and built th
 |---|---|
 | **Data** | 15 public datasets from Dubai Land Department: history from the September 2026 downloads, new records every day from the DLD API |
 | **Size** | 1.8M property sales and transfers, 10.5M rent contracts, 2.4M registered units, 3,000+ projects |
-| **Storage** | DuckDB (v2). The first version ran on Snowflake |
+| **Storage** | DuckDB on a free Oracle Cloud server in Dubai. The first version ran on Snowflake |
 | **Cleaning and modeling** | dbt, rebuilt and tested automatically every day at 10 AM Dubai time |
 | **Forecast** | Python (exponential smoothing), retrained every day |
 | **Report** | 11 pages in Power BI, refreshed automatically every day at 11:30 AM Dubai time |
