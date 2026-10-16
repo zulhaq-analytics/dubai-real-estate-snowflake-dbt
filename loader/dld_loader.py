@@ -34,7 +34,7 @@ import requests
 # ---------------------------------------------------------------- settings
 BASE = "https://apis.data.dubai"
 TOKEN_URL = f"{BASE}/secure/ssis/dubaiai/gatewaytoken/1.0.0/getAccessToken"
-ROOT = Path(r"C:\Portfolio\dld")
+ROOT = Path(os.environ.get("DLD_ROOT", r"C:\Portfolio\dld"))  # set DLD_ROOT on the Oracle server
 DB_PATH = ROOT / "dld.duckdb"
 LOG_DIR = ROOT / "logs"
 RAW_CSV_DIR = ROOT / "raw"
