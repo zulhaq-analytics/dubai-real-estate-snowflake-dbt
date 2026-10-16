@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: mart_agent_area_segment
+    description: >
+      Summary for the Dubai Property Advisor agent. Grain - one row per area, property type
+      (Apartment or Villa) and bedroom category, for the 12 months to the latest sale date,
+      compared with the 12 months before. Yields need 30+ ready sales and 30+ leases;
+      price and rent changes need 50+ in both periods. Price change uses ready homes only.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [area_id, property_type, room_category]
+    columns:
+      - name: as_of_date
+        data_tests: [not_null]
+      - name: area_id
+        data_tests: [not_null]
+      - name: property_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Apartment', 'Villa']
