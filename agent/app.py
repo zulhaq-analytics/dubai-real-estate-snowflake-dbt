@@ -9,6 +9,7 @@ import threading
 import time
 from collections import deque
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -82,7 +83,13 @@ def take_slot(on_wait) -> str:
 # ------------------------------------------------------------------------------------------------
 # Evidence and charts, built only from tool results
 # ------------------------------------------------------------------------------------------------
+NAMES = {"area_display_name": "Area", "property_type": "Type", "room_category": "Bedrooms",
+         "as_of_date": "Data date", "year": "Year"}
+
+
 def _pretty(col: str) -> str:
+    if col in NAMES:
+        return NAMES[col]
     words = col.replace("_pct", " (%)").replace("_aed", " (AED)").replace("_sqft", " sq ft") \
                .replace("_sqm", " sqm").replace("_12m", " (12 months)").replace("_", " ")
     return words[:1].upper() + words[1:]
@@ -101,6 +108,19 @@ def _visitor_note(note: str) -> str:
 
 def _segment_label(r: dict) -> str:
     return f"{r.get('area_display_name', '')} · {r.get('room_category', '')} {r.get('property_type', '').lower()}"
+
+
+def _ranked_bars(df: pd.DataFrame, key: str, title: str):
+    """Horizontal bars, highest first, with full labels and the value printed on each bar."""
+    base = alt.Chart(df).encode(
+        y=alt.Y("label:N", sort="-x", title=None, axis=alt.Axis(labelLimit=320)),
+        x=alt.X(f"{key}:Q", title=title))
+    chart = base.mark_bar() + base.mark_text(align="left", dx=4).encode(text=alt.Text(f"{key}:Q", format=",.2~f"))
+    st.altair_chart(chart.properties(height=34 * len(df) + 40), width="stretch")
+
+
+def _height(rows: int) -> int:
+    return 35 * (rows + 1) + 3
 
 
 def render_visuals(trace: list):
@@ -129,12 +149,16 @@ def render_visuals(trace: list):
                 df["label"] = df.apply(_segment_label, axis=1)
                 title = "Gross yield, ready homes (%)" if "yield" in key else "Median home size, all sales (sqm)"
                 st.caption(f"Top results: {title}")
-                st.bar_chart(df.set_index("label")[[key]], height=260)
-    if len(segments) >= 2 and any(s.get("gross_yield_ready_pct") is not None for s in segments):
-        df = pd.DataFrame(segments)
-        df["label"] = df.apply(_segment_label, axis=1)
-        st.caption("Gross yield, ready homes (%). Blank means the sample is too small to publish.")
-        st.bar_chart(df.set_index("label")[["gross_yield_ready_pct"]], height=220)
+                _ranked_bars(df, key, title)
+    if 2 <= len(segments) <= 4:
+        st.caption("Side by side (medians, last 12 months; — means the sample is too small to publish)")
+        for col, seg in zip(st.columns(len(segments)), segments):
+            with col:
+                st.markdown(f"**{seg.get('area_display_name', '')}**  \n{seg.get('room_category', '')} "
+                            f"{seg.get('property_type', '').lower()}")
+                y, p = seg.get("gross_yield_ready_pct"), seg.get("median_ready_price_aed")
+                st.metric("Gross yield, ready", "—" if y is None else f"{y}%")
+                st.metric("Median ready price", "—" if p is None else f"AED {p:,}")
 
     with st.expander("Show the data behind this answer"):
         for t in calls:
@@ -144,11 +168,12 @@ def render_visuals(trace: list):
                 seg = _table([res["segment"]]).T.rename(columns={0: "Value"})
                 seg["Value"] = seg["Value"].map(lambda v: "—" if v is None or pd.isna(v) else
                                                 (f"{v:,}" if isinstance(v, (int, float)) else str(v)))
-                st.dataframe(seg, width="stretch")
+                st.dataframe(seg, width="stretch", height=_height(len(seg)))
                 for n in res.get("notes", []):
                     st.caption(_visitor_note(n))
             elif t["tool"] == "find_segments":
-                st.dataframe(_table(res.get("results", [])), width="stretch", hide_index=True)
+                rows = res.get("results", [])
+                st.dataframe(_table(rows), width="stretch", hide_index=True, height=_height(len(rows)))
             elif t["tool"] == "get_area_trend":
                 st.dataframe(_table(res.get("years", [])), width="stretch", hide_index=True)
                 st.caption(res.get("note", ""))
