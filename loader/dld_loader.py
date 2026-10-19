@@ -53,8 +53,12 @@ DATASETS = {
                        "key": ["procedure_year", "procedure_number"]},
     "rent_contracts": {"path": "dld/dld_rent_contracts-open-api", "date_col": "contract_start_date", "window_days": 60,
                        "key": ["contract_id", "line_number"]},
-    "projects":       {"path": "dld/dld_projects-open-api",       "date_col": None,                  "window_days": None},
-    "units":          {"path": "dld/dld_units-open-api",          "date_col": None,                  "window_days": None},
+    "projects":       {"path": "dld/dld_projects-open-api",       "date_col": None,                  "window_days": None,
+                       "order_by": "project_id", "key": ["project_id"]},
+    # Full reloads must page in a fixed order: without order_by the API can return the same rows on
+    # several pages and skip others (Oct 19: 2.38M rows fetched, only 1.51M distinct).
+    "units":          {"path": "dld/dld_units-open-api",          "date_col": None,                  "window_days": None,
+                       "order_by": "property_id", "key": ["property_id"]},
 }
 DAILY_DATASETS = ["transactions", "valuation", "rent_contracts"]
 
@@ -251,7 +255,7 @@ def full_load(con, client, name, restart=False):
     t0 = time.time()
     buffer = []
     while True:
-        rows = client.get_page(cfg["path"], page)
+        rows = client.get_page(cfg["path"], page, order_by=cfg.get("order_by"))
         buffer.extend(rows)
         page += 1
         last_page = len(rows) < PAGE_SIZE
@@ -271,6 +275,15 @@ def full_load(con, client, name, restart=False):
 
     if not table_exists(con, stg):
         raise RuntimeError(f"{name}: API returned no rows; existing table left unchanged")
+
+    # Shrink guard: never replace a table with a much smaller reload (sign of a broken API paging run).
+    new_rows = con.execute(f'select count(*) from (select distinct * from raw."{stg}")').fetchone()[0]
+    old_rows = count(con, name) if table_exists(con, name) else 0
+    if old_rows and new_rows < 0.9 * old_rows:
+        con.execute(f'drop table raw."{stg}"')
+        con.execute("delete from raw._load_state where dataset = ?", [name])
+        raise RuntimeError(f"{name}: reload has {new_rows:,} distinct rows vs {old_rows:,} now "
+                           f"(more than 10% fewer); existing table kept unchanged")
 
     con.begin()
     con.execute(f'create or replace table raw."{name}" as select distinct * from raw."{stg}"')
