@@ -95,8 +95,28 @@ def _pretty(col: str) -> str:
     return words[:1].upper() + words[1:]
 
 
-def _table(rows: list) -> pd.DataFrame:
+RANK_FIRST = ["area_display_name", "room_category", "gross_yield_ready_pct", "ready_price_per_sqm_change_pct",
+              "median_ready_price_aed", "median_annual_rent_aed", "median_size_all_sales_sqft"]
+
+
+def _fmt(v):
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return "—"
+    if isinstance(v, bool):
+        return str(v)
+    if isinstance(v, float) and v.is_integer():
+        v = int(v)
+    if isinstance(v, (int, float)):
+        return f"{v:,}"
+    return str(v)
+
+
+def _table(rows: list, first: list = None) -> pd.DataFrame:
     df = pd.DataFrame(rows)
+    if first:
+        df = df[[c for c in first if c in df.columns] + [c for c in df.columns if c not in first]]
+    for c in df.columns:
+        df[c] = df[c].astype(object).map(str if c == "year" else _fmt)
     return df.rename(columns={c: _pretty(c) for c in df.columns})
 
 
@@ -115,7 +135,8 @@ def _ranked_bars(df: pd.DataFrame, key: str, title: str):
     base = alt.Chart(df).encode(
         y=alt.Y("label:N", sort="-x", title=None, axis=alt.Axis(labelLimit=320)),
         x=alt.X(f"{key}:Q", title=title))
-    chart = base.mark_bar() + base.mark_text(align="left", dx=4).encode(text=alt.Text(f"{key}:Q", format=",.2~f"))
+    chart = base.mark_bar() + base.mark_text(align="left", dx=4, color="#9aa0a6", fontSize=12).encode(
+        text=alt.Text(f"{key}:Q", format=",.2~f"))
     st.altair_chart(chart.properties(height=34 * len(df) + 40), width="stretch")
 
 
@@ -147,7 +168,9 @@ def render_visuals(trace: list):
             df = pd.DataFrame(res["results"])
             if key in df.columns:
                 df["label"] = df.apply(_segment_label, axis=1)
-                title = "Gross yield, ready homes (%)" if "yield" in key else "Median home size, all sales (sqm)"
+                title = ("Gross yield, ready homes (%)" if "yield" in key else
+                         "Ready price per sqm change, last 12 months (%) — past performance" if "change" in key else
+                         "Median home size, all sales (sqm)")
                 st.caption(f"Top results: {title}")
                 _ranked_bars(df, key, title)
     if 2 <= len(segments) <= 4:
@@ -166,14 +189,12 @@ def render_visuals(trace: list):
             st.markdown(f"**{SOURCE_LABELS[t['tool']]}**")
             if t["tool"] == "get_segment":
                 seg = _table([res["segment"]]).T.rename(columns={0: "Value"})
-                seg["Value"] = seg["Value"].map(lambda v: "—" if v is None or pd.isna(v) else
-                                                (f"{v:,}" if isinstance(v, (int, float)) else str(v)))
                 st.dataframe(seg, width="stretch", height=_height(len(seg)))
                 for n in res.get("notes", []):
                     st.caption(_visitor_note(n))
             elif t["tool"] == "find_segments":
                 rows = res.get("results", [])
-                st.dataframe(_table(rows), width="stretch", hide_index=True, height=_height(len(rows)))
+                st.dataframe(_table(rows, RANK_FIRST), width="stretch", hide_index=True, height=_height(len(rows)))
             elif t["tool"] == "get_area_trend":
                 st.dataframe(_table(res.get("years", [])), width="stretch", hide_index=True)
                 st.caption(res.get("note", ""))
