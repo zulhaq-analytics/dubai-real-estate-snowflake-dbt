@@ -36,7 +36,7 @@ CORE_CASES = [
     dict(id="F08", kind="fact", tool="get_segment", area="Business Bay", type="Apartment", rooms="2 BR",
          fields=["median_offplan_price_aed"], q="What is the median off-plan price for a 2-bedroom apartment in Business Bay?"),
     dict(id="F09", kind="fact", tool="get_segment", area="Dubai Marina", type="Apartment", rooms="1 BR",
-         fields=["median_size_sqm"], q="What is the median size of a 1-bedroom apartment in Dubai Marina?"),
+         fields=["median_size_all_sales_sqm"], q="What is the median size of a 1-bedroom apartment in Dubai Marina?"),
     dict(id="F10", kind="fact", tool="get_segment", area="Dubai Land Residence Complex", type="Apartment", rooms="Studio",
          fields=["gross_yield_ready_pct"], q="What is the gross yield for ready studio apartments in Dubai Land Residence Complex?"),
     dict(id="F11", kind="fact", tool="get_segment", area="JVC", type="Apartment", rooms="1 BR",
@@ -137,7 +137,7 @@ FACT_TEMPLATES = {
     "gross_yield_ready_pct": "What gross rental yield do ready {r} {t}s in {a} get?",
     "rents_12m": "How many new leases were signed for {r} {t}s in {a} in the last 12 months?",
     "ready_sales_12m": "How many ready {r} {t}s were sold in {a} in the last 12 months?",
-    "median_size_sqm": "What is the median size of a {r} {t} in {a}?",
+    "median_size_all_sales_sqm": "What is the median size of a {r} {t} in {a}?",
     "ready_price_per_sqm_change_pct": "How have ready prices per sqm for {r} {t}s in {a} changed over the last year?",
 }
 TREND_TEMPLATES = {
@@ -161,6 +161,8 @@ def generated_cases(seed=42, n_fact=40, n_rank=8, n_trend=6, n_missing=6):
         SELECT * FROM seg
         WHERE room_category <> '5+ BR' AND NOT (room_category = 'Studio' AND property_type = 'Villa')
         ORDER BY area_display_name, property_type, room_order""").df()
+    # get_segment publishes the all-sales size under this clearer name
+    seg["median_size_all_sales_sqm"] = seg["median_size_sqm"]
     cases, seen = [], set()
 
     fields = list(FACT_TEMPLATES)

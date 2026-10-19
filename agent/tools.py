@@ -74,7 +74,8 @@ def _check(value: str, allowed: list, label: str):
 
 def resolve_area(name: str) -> dict:
     """Find Dubai areas matching a name the user typed. Call this FIRST whenever the user mentions
-    an area, then use the exact area_display_name it returns in the other tools.
+    an area, then use the exact area_display_name it returns in the other tools. It returns names only,
+    busiest area first, and no figures: always get figures from the other tools.
     name: area or community name as the user wrote it, for example 'JVC', 'marina' or 'Business Bay'."""
     names = [r[0] for r in _con.cursor().execute(
         "SELECT DISTINCT area_display_name FROM seg WHERE area_display_name IS NOT NULL").fetchall()]
@@ -84,16 +85,17 @@ def resolve_area(name: str) -> dict:
         hits = difflib.get_close_matches(name.strip(), names, n=5, cutoff=0.6)
     if not hits:
         return {"matches": [], "note": "No area found. Ask the user to check the name."}
-    rows = _rows(f"""
-        SELECT area_display_name, sum(sales_12m) AS sales_12m, sum(rents_12m) AS new_leases_12m
-        FROM seg WHERE area_display_name IN ({','.join('?' * len(hits))})
-        GROUP BY 1 ORDER BY sales_12m DESC""", hits, limit=5)
-    return {"matches": rows}
+    ordered = [r[0] for r in _con.cursor().execute(f"""
+        SELECT area_display_name FROM seg WHERE area_display_name IN ({','.join('?' * len(hits))})
+        GROUP BY 1 ORDER BY sum(sales_12m) + sum(rents_12m) DESC LIMIT 5""", hits).fetchall()]
+    return {"matches": [{"area_display_name": n} for n in ordered]}
 
 
 def get_segment(area_display_name: str, property_type: str, room_category: str) -> dict:
-    """Get prices, rents, yields and price/rent changes for one area, property type and bedroom count,
-    for the last 12 months. Read the 'notes' field: it explains any figure that is not published.
+    """Get prices, sizes, rents, yields and price/rent changes for one area, property type and bedroom
+    count, for the last 12 months. Sizes and per-area prices and rents are given in both sqm and sq ft. Fields named 'all_sales' include
+    off-plan sales (sample: sales_12m); 'ready' fields exclude them (sample: ready_sales_12m).
+    Read the 'notes' field: it explains any figure that is not published.
     area_display_name: exact name from resolve_area. property_type: 'Apartment' or 'Villa'.
     room_category: 'Studio', '1 BR', '2 BR', '3 BR', '4 BR' or '5+ BR'."""
     err = _check(property_type, TYPES, "property_type") or _check(room_category, ROOMS, "room_category")
@@ -103,9 +105,13 @@ def get_segment(area_display_name: str, property_type: str, room_category: str) 
         SELECT as_of_date, area_display_name, property_type, room_category,
                sales_12m, ready_sales_12m, offplan_sales_12m,
                median_price_aed          AS median_price_all_sales_aed,
-               median_ready_price_aed, median_offplan_price_aed, median_size_sqm,
+               median_ready_price_aed, median_offplan_price_aed,
+               median_size_sqm                     AS median_size_all_sales_sqm,
+               round(median_size_sqm * 10.7639)    AS median_size_all_sales_sqft,
                median_price_per_sqm_aed  AS median_price_per_sqm_all_sales_aed,
+               round(median_price_per_sqm_aed / 10.7639) AS median_price_per_sqft_all_sales_aed,
                rents_12m, median_annual_rent_aed, median_rent_per_sqm_aed,
+               round(median_rent_per_sqm_aed / 10.7639, 1) AS median_rent_per_sqft_aed,
                ready_price_per_sqm_change_pct, rent_per_sqm_change_pct,
                gross_yield_ready_pct, net_yield_ready_pct
         FROM seg
@@ -133,7 +139,8 @@ def get_segment(area_display_name: str, property_type: str, room_category: str) 
 def find_segments(max_budget_aed: float, goal: str, room_category: str = "", property_type: str = "",
                   limit: int = 10) -> dict:
     """Find area, property type and bedroom combinations whose median READY home price is within budget.
-    goal: 'rent_out' ranks by gross rental yield; 'live' ranks by median home size (most space for the money).
+    goal: 'rent_out' ranks by gross rental yield; 'live' ranks by median home size of all sales (most space
+    for the money). Sizes are given in both sqm and sq ft.
     max_budget_aed: maximum price in AED. room_category and property_type are optional filters.
     limit: number of results, at most 15. Only segments with at least 30 ready sales are returned."""
     err = (_check(goal, GOALS, "goal") or _check(room_category, ROOMS, "room_category")
@@ -149,12 +156,14 @@ def find_segments(max_budget_aed: float, goal: str, room_category: str = "", pro
         where.append("gross_yield_ready_pct IS NOT NULL")
         order = "gross_yield_ready_pct DESC"
     else:
-        order = "median_size_sqm DESC"
+        order = "median_size_all_sales_sqm DESC"
     cond = " AND ".join(where)
     total = _con.cursor().execute(f"SELECT count(*) FROM seg WHERE {cond}", params).fetchone()[0]
     rows = _rows(f"""
         SELECT area_display_name, property_type, room_category, ready_sales_12m, median_ready_price_aed,
-               median_size_sqm, rents_12m, median_annual_rent_aed, gross_yield_ready_pct, net_yield_ready_pct,
+               median_size_sqm AS median_size_all_sales_sqm,
+               round(median_size_sqm * 10.7639) AS median_size_all_sales_sqft,
+               rents_12m, median_annual_rent_aed, gross_yield_ready_pct, net_yield_ready_pct,
                ready_price_per_sqm_change_pct, rent_per_sqm_change_pct
         FROM seg WHERE {cond} ORDER BY {order} LIMIT {max(1, min(int(limit), MAX_ROWS))}""", params)
     return {"total_matches": total, "ranked_by": order.split()[0], "results": rows}

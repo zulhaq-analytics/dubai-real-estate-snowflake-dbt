@@ -8,7 +8,6 @@ import streamlit as st
 
 import agent
 
-REPO_URL = "https://github.com/zulhaq-analytics/dubai-real-estate-snowflake-dbt"
 MAX_QUESTIONS_PER_VISITOR = 10
 EXAMPLES = [
     "I have AED 1.5 million for a 1-bedroom apartment to rent out. Where are yields highest?",
@@ -84,4 +83,4 @@ if prompt:
 
 st.divider()
 st.caption("Source: Dubai Land Department open data (Dubai Data). Independent project, not affiliated with "
-           f"or endorsed by Dubai Land Department. Built by Zia Malik · [Code and method]({REPO_URL})")
+           "or endorsed by Dubai Land Department. Built by Zia Malik.")
