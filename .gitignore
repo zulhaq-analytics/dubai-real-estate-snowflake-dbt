@@ -10,3 +10,5 @@ dbt_internal_packages/
 *.duckdb.wal
 *.parquet
 .user.yml
+   # Python cache
+   __pycache__/
