@@ -15,7 +15,7 @@ TABLES = {
 }
 ROOMS = ["Studio", "1 BR", "2 BR", "3 BR", "4 BR", "5+ BR"]
 TYPES = ["Apartment", "Villa"]
-GOALS = ["rent_out", "live"]
+GOALS = ["rent_out", "live", "price_growth"]
 MAX_ROWS = 15
 ALIASES = {
     "jvc": "jumeirah village circle",
@@ -139,7 +139,9 @@ def get_segment(area_display_name: str, property_type: str, room_category: str) 
 def find_segments(max_budget_aed: float, goal: str, room_category: str = "", property_type: str = "",
                   limit: int = 10) -> dict:
     """Find area, property type and bedroom combinations whose median READY home price is within budget.
-    goal: 'rent_out' ranks by gross rental yield; 'live' ranks by median home size of all sales (most space
+    goal: 'rent_out' ranks by gross rental yield; 'price_growth' ranks by the change in median READY price per
+    sqm over the last 12 months versus the previous 12 (past performance, NOT a forecast); 'live' ranks by
+    median home size of all sales (most space
     for the money). Sizes are given in both sqm and sq ft.
     max_budget_aed: maximum price in AED. room_category and property_type are optional filters.
     limit: number of results, at most 15. Only segments with at least 30 ready sales are returned."""
@@ -155,12 +157,15 @@ def find_segments(max_budget_aed: float, goal: str, room_category: str = "", pro
     if goal == "rent_out":
         where.append("gross_yield_ready_pct IS NOT NULL")
         order = "gross_yield_ready_pct DESC"
+    elif goal == "price_growth":
+        where.append("ready_price_per_sqm_change_pct IS NOT NULL")
+        order = "ready_price_per_sqm_change_pct DESC"
     else:
         order = "median_size_all_sales_sqm DESC"
     cond = " AND ".join(where)
     total = _con.cursor().execute(f"SELECT count(*) FROM seg WHERE {cond}", params).fetchone()[0]
     rows = _rows(f"""
-        SELECT area_display_name, property_type, room_category, ready_sales_12m, median_ready_price_aed,
+        SELECT area_display_name, property_type, room_category, sales_12m, ready_sales_12m, median_ready_price_aed,
                median_size_sqm AS median_size_all_sales_sqm,
                round(median_size_sqm * 10.7639) AS median_size_all_sales_sqft,
                rents_12m, median_annual_rent_aed, gross_yield_ready_pct, net_yield_ready_pct,
