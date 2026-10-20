@@ -232,7 +232,8 @@ except Exception:
 st.title("Dubai Property Advisor")
 st.caption(f"Answers from Dubai Land Department open data · Data as of {advisor.as_of} · "
            "Information, not financial advice")
-st.info("Please don't enter personal information. Questions are processed by Google's Gemini API.", icon="🔒")
+st.info("Please don't enter personal information. Questions are processed by Google's Gemini API (free tier), "
+        "and Google may review them to improve its services.", icon="🔒")
 
 state = st.session_state
 if "messages" not in state:
@@ -306,5 +307,7 @@ if prompt:
     state.messages.append({"role": "assistant", "content": answer, "note": note, "trace": trace})
 
 st.divider()
-st.caption("Source: Dubai Land Department open data (Dubai Data). Independent project, not affiliated with "
-           "or endorsed by Dubai Land Department. Built by Zia Malik.")
+st.caption("Source: [Dubai Land Department open data on Data Dubai]"
+           "(https://data.dubai/en/entity-list?com_dda_issuingentity_details_issuingEntityIds=62035), "
+           "used under the Data Dubai Open Data Licence. Independent project, not affiliated with or endorsed "
+           "by Dubai Land Department or the Dubai Government. Built by Zia Malik.")

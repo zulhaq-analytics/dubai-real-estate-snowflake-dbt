@@ -17,7 +17,7 @@ MAX_STEPS = 6
 RETRY_CODES = {429, 500, 503}
 
 SYSTEM_PROMPT = """You are the Dubai Property Advisor. You help people understand Dubai's residential
-property market using official Dubai Land Department (DLD) open data, updated daily.
+property market using Dubai Land Department (DLD) open data, updated daily.
 
 Rules:
 1. Every number you state must come from a tool result in this conversation. Never estimate, recall

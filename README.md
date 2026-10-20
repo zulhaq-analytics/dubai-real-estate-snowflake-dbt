@@ -4,7 +4,7 @@ I built this project to answer the questions people ask before buying or renting
 
 I used 11 years of public data from the Dubai Land Department (DLD) and built the full pipeline myself, from raw data to a finished Power BI report. The data now updates every day straight from DLD's API.
 
-`DuckDB` · `dbt` · `Python` · `Power BI` · `SQL` · `DAX` · `Oracle Cloud` · `Linux` · `Snowflake (v1)`
+`DuckDB` · `dbt` · `Python` · `Power BI` · `SQL` · `DAX` · `Oracle Cloud` · `Linux` · `Gemini API` · `Streamlit` · `Snowflake (v1)`
 
 **[▶ Open the live report](https://app.powerbi.com/view?r=eyJrIjoiN2FkZTRmYTQtOGY3ZC00YjA4LTg5ZTktZTY0MjY3NjVkMTc0IiwidCI6ImEyYjYxNTdiLWZlM2ItNGRlZi05OTAzLTc4YTRlMmU5NTNhYiJ9)** · [Download the PDF](report/dubai_property_prospectus.pdf)
 
@@ -62,6 +62,7 @@ flowchart LR
 - If a run is missed (a server outage, DLD downtime), the next run goes back far enough to fill the gap.
 - It stays under DLD's limit of 60 requests a minute, gets a new login token before the old one expires, and retries when DLD's server times out.
 - When DLD changes a record's date, the same record can arrive twice. The loader keeps only the newest copy.
+- The list of 2.4M registered units has no date to filter on, so a separate weekly job reloads it in full every Saturday night. It pages through the API in a fixed order, and it refuses to replace the table if the new copy is much smaller than the old one.
 - The API keys live in environment variables, never in the code.
 - Everything runs on a free Oracle Cloud server in Dubai. The DLD API only accepts UAE connections, so the server sits in the UAE. Every morning at 10 AM a scheduled job runs the loader, then dbt, then uploads the report tables to Oracle Object Storage, and writes everything to a log file. At 11:30 AM, Power BI refreshes the public report straight from there, so the live link always shows the latest data.
 
@@ -125,6 +126,7 @@ Government data is messy. These issues would have given wrong numbers if I had n
 | Very small samples, such as a 5-bedroom rent based on a few contracts | Misleading figures | Hid results based on fewer than 10 contracts |
 | Rent contracts with start dates as far out as 2205 | Charts running into future years | Ignored impossible dates and stopped time charts at the latest month with real activity |
 | DLD changed the dates of some records after I downloaded them | The same sale counted twice | The loader keeps only the newest copy of each record |
+| My first full reload of the units list paged through the API without a fixed order | The API returned some rows twice and skipped others: 2.38M rows came back but only 1.51M were different units | Every full reload is now sorted by ID and de-duplicated by ID, and a reload with over 10% fewer rows than the current table is rejected. The repeat run brought back all 2,380,774 units |
 
 ---
 
@@ -154,6 +156,21 @@ Sales volumes swing with project launches and the wider economy, so the report t
 
 ---
 
+## The AI property advisor
+
+I also built a chat assistant that answers questions about the same data, such as "Which areas can I rent a 2-bedroom in for AED 80,000 a year?" or "Should I buy or rent in Dubai Marina?". It runs on Google's Gemini model, but the model never sees the raw data and is not allowed to work out numbers itself. It can only call six read-only tools that query the report tables (find an area, look up one area and home type, rank areas for buying or renting within a budget, show an area's yearly trend, read the forecast), and it must quote what they return.
+
+- Every number in an answer is checked automatically against the tool results. If the model writes a figure that no tool returned, it gets one chance to look it up properly and rewrite the answer.
+- It gives the sample size and data date, says "median" rather than "average", and says plainly when a sample is too small to publish a figure.
+- It declines off-topic questions and attempts to make it reveal its instructions.
+- It does not predict which area's prices will rise. For resale questions it shows past price growth and the citywide forecast with its range.
+
+I test it with 113 questions: 53 I wrote myself (facts, rankings, trends, forecasts, missing data, wrong premises, follow-ups, a question in Arabic, prompt-injection attempts, off-topic requests) and 60 generated at random from the data. The expected answers are computed from the same tables when the test runs, so the test stays valid as the data changes. The latest version passed all 113. In 2 answers the automatic check caught a figure that wasn't in the data, and the agent corrected it before answering.
+
+The app is private for now while I confirm the data licence terms with Dubai Data. The code and test results are in `agent/`.
+
+---
+
 ## How I checked the numbers
 
 - I checked every headline number on every page against my own SQL queries. When a number didn't match, I traced it back to how it was defined and either fixed it or made the definition clear.
@@ -164,6 +181,7 @@ Sales volumes swing with project launches and the wider economy, so the report t
 ## What's in this repository
 
 - `loader/dld_loader.py`: the daily DLD API loader
+- `agent/`: the AI property advisor (data tools, the agent loop with its number check, the Streamlit app) and its 113-question test set with results
 - `run_daily.sh`: the daily job on the Oracle Cloud server (loader, dbt, upload for Power BI)
 - `run_daily.bat`: the same daily job for Windows
 - `models/`: the dbt models and their tests
@@ -179,4 +197,4 @@ The Power BI file itself (.pbix) is 473 MB, too large for GitHub, and the data l
 
 ---
 
-*Data: Dubai Land Department open data (Dubai Pulse downloads and the Dubai Data API). This is my own independent analysis and is not linked to or approved by Dubai Land Department.*
+*Data: [Dubai Land Department open data on Data Dubai](https://data.dubai/en/entity-list?com_dda_issuingentity_details_issuingEntityIds=62035) (history from Dubai Pulse downloads, daily updates from the Dubai Data API), used under the Data Dubai Open Data Licence. This is my own independent analysis and is not linked to or approved by Dubai Land Department or the Dubai Government. Built with help from Claude (AI-assisted development).*
