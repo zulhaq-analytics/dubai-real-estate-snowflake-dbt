@@ -27,6 +27,7 @@ EXAMPLES = [
 SOURCE_LABELS = {
     "get_segment": "Figures for one area and home type",
     "find_segments": "Ranking of areas within the budget",
+    "find_rentals": "Areas within the rent budget",
     "get_area_trend": "Yearly trend for the area",
     "get_market_forecast": "Citywide 12-month forecast",
 }
@@ -95,6 +96,8 @@ def _pretty(col: str) -> str:
     return words[:1].upper() + words[1:]
 
 
+RENT_FIRST = ["area_display_name", "room_category", "median_annual_rent_aed", "rents_12m",
+              "median_rent_per_sqft_aed"]
 RANK_FIRST = ["area_display_name", "room_category", "gross_yield_ready_pct", "ready_price_per_sqm_change_pct",
               "median_ready_price_aed", "median_annual_rent_aed", "median_size_all_sales_sqft"]
 
@@ -173,6 +176,11 @@ def render_visuals(trace: list):
                          "Median home size, all sales (sqm)")
                 st.caption(f"Top results: {title}")
                 _ranked_bars(df, key, title)
+        elif t["tool"] == "find_rentals" and res.get("results"):
+            df = pd.DataFrame(res["results"])
+            df["label"] = df.apply(_segment_label, axis=1)
+            st.caption("Busiest rental areas within the budget: median yearly rent of new leases (AED)")
+            _ranked_bars(df, "median_annual_rent_aed", "Median yearly rent (AED)")
     if 2 <= len(segments) <= 4:
         st.caption("Side by side (medians, last 12 months; — means the sample is too small to publish)")
         for col, seg in zip(st.columns(len(segments)), segments):
@@ -195,6 +203,9 @@ def render_visuals(trace: list):
             elif t["tool"] == "find_segments":
                 rows = res.get("results", [])
                 st.dataframe(_table(rows, RANK_FIRST), width="stretch", hide_index=True, height=_height(len(rows)))
+            elif t["tool"] == "find_rentals":
+                rows = res.get("results", [])
+                st.dataframe(_table(rows, RENT_FIRST), width="stretch", hide_index=True, height=_height(len(rows)))
             elif t["tool"] == "get_area_trend":
                 st.dataframe(_table(res.get("years", [])), width="stretch", hide_index=True)
                 st.caption(res.get("note", ""))

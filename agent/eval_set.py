@@ -1,4 +1,4 @@
-"""Evaluation set for the Dubai Property Advisor (v2).
+"""Evaluation set for the Dubai Property Advisor (v4: + rent-budget cases K16-K18).
 
 Three groups: 35 hand-written core cases, ~60 cases generated at random (fixed seed) from every
 area with enough data, and 13 tricky cases (wrong premises, multi-part, follow-ups, vague, Arabic,
@@ -126,6 +126,12 @@ TRICKY_CASES = [
                                    "highest profit when I sell in 2 to 3 years?"),
     dict(id="K15", kind="forecast_range", tool="get_market_forecast", series="Price per sq m",
          horizon="forecast_12m", q="Where will Dubai property prices be in 12 months?"),
+    dict(id="K16", kind="rent_rank", budget=80_000, rooms="2 BR", type="",
+         q="my budget is 80000 aed. which areas can i rent a 2 bhk in?"),
+    dict(id="K17", kind="rent_rank", budget=50_000, rooms="Studio", type="Apartment",
+         q="Where can I rent a studio apartment for under AED 50,000 a year?"),
+    dict(id="K18", kind="rent_rank", budget=180_000, rooms="3 BR", type="Villa",
+         q="I can pay up to AED 180,000 a year in rent for a 3-bedroom villa. Where should I look?"),
 ]
 for _c in TRICKY_CASES:
     if _c["kind"] == "followup":
@@ -288,6 +294,11 @@ def _expected(c):
         if not res:
             return {"invalid": "no ranking results"}
         return {"top_area": res[0]["area_display_name"], "values": {}}
+    if k == "rent_rank":
+        res = tools.find_rentals(c["budget"], c["rooms"], c["type"], limit=3).get("results") or []
+        if not res:
+            return {"invalid": "no rental results within budget"}
+        return {"top_area": res[0]["area_display_name"], "values": {}}
     if k == "forecast_range":
         s = next((x for x in tools.get_market_forecast()["series"] if x["series"] == c["series"]), None)
         if not s or not s.get(c["horizon"]):
@@ -318,6 +329,9 @@ def _grade(c, exp, r, called):
         checks["corrects_premise"] = bool(CORRECTS.search(ans))
     elif k == "rank":
         checks["right_tool"] = "find_segments" in called
+        checks["top_result_named"] = exp["top_area"].lower() in ans.lower()
+    elif k == "rent_rank":
+        checks["right_tool"] = "find_rentals" in called and "find_segments" not in called
         checks["top_result_named"] = exp["top_area"].lower() in ans.lower()
     elif k == "missing":
         checks["right_tool"] = "get_segment" in called

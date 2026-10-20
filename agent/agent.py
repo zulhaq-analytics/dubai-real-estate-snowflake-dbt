@@ -34,10 +34,11 @@ Rules:
    get_segment or find_segments, never from resolve_area.
 5. Gross yield = annual rent / price, before costs. Net yield also subtracts the area's service charges.
    Yields refer to ready homes. Prices and sizes are MEDIANS for the last 12 months, in AED; always say
-   "median", never "average". Changes compare with the previous 12 months. When a tool gives a size,
-   price per area or rent per area in both sq ft and sqm, give sq ft first with sqm in brackets, for
-   example "837 sq ft (77.8 sqm)". When it gives sqm only (yearly area trends, citywide forecasts),
-   give sqm only. Write "sq ft" and "sqm" (never "square metres").
+   "median", never "average". Changes compare with the previous 12 months. When a tool gives a value in
+   both sq ft and sqm, give sq ft first with sqm in brackets: a size as "837 sq ft (77.8 sqm)"; a price or
+   rent per area as "AED 1,450 per sq ft (AED 15,600 per sqm)" - never write a price or rent per area as
+   if it were a size. When a tool gives sqm only (yearly area trends, citywide forecasts), give sqm only.
+   Write "sq ft" and "sqm" (never "square metres").
 6. Use field names exactly: "all sales" figures include off-plan; "ready" figures do not. Never call an
    all-sales figure a ready figure.
 7. If you leave out any results a tool returned, say briefly that more results are available, without
@@ -58,6 +59,14 @@ Rules:
     (find_segments with goal 'price_growth', clearly called past performance) and the citywide forecast.
     Never answer a resale question with a rental-yield ranking.
 14. Whenever you quote a forecast, give its lower and upper bound as well, and call it a model estimate.
+15. Renting vs buying: a budget for renting is a YEARLY RENT, never a purchase price. For renting questions
+    use find_rentals; for buying questions use find_segments. Only if the user gives a budget and it is
+    unclear whether it is for renting or buying, ask one short question. If the user asks whether to buy
+    or rent, do not ask: show the median ready price, the median annual rent and the gross yield from the
+    tools so they can compare, and end with the one-line due diligence reminder. Never say a budget does not
+    fit before checking with the right tool.
+16. For a question about one specific figure, quote that figure plus its sample size and the data date;
+    do not add other figures the user did not ask for. Rules 13 and 14 always apply in full.
 """
 
 _NUM = re.compile(r"(?<![\w.])(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k|m|mn|million|bn|billion)?\b", re.I)
@@ -129,6 +138,9 @@ _INTERNAL = re.compile(r"\brule\s*\d+|\b(" + "|".join(f.__name__ for f in tools.
                        r"|sales_12m|ready_sales_12m|rents_12m)\b", re.I)
 REWRITE_NOTE = ("(Automatic check) Your last reply was incomplete or mentioned internal rules, tools or field "
                 "names. Rewrite the full answer for the user in plain words, following all the rules.")
+RECHECK_NOTE = ("(Automatic check) Your last reply contains figures that do not come from any tool result in this "
+                "conversation: {flagged}. Call the tools to get the figures you need, then rewrite the full answer "
+                "using only numbers from tool results. If the tools do not have a figure, say so instead.")
 
 
 def _needs_rewrite(answer: str) -> bool:
@@ -181,6 +193,7 @@ class Advisor:
     def ask(self, question: str, history: list = None) -> dict:
         contents = list(history or []) + [types.Content(role="user", parts=[types.Part(text=question)])]
         trace, outputs, start = [], [], time.time()
+        rechecked = False
         for step in range(1, MAX_STEPS + 1):
             resp = self._generate(contents)
             contents.append(resp.candidates[0].content)
@@ -190,6 +203,14 @@ class Advisor:
                 if _needs_rewrite(answer) and step < MAX_STEPS:
                     contents.append(types.Content(role="user", parts=[types.Part(text=REWRITE_NOTE)]))
                     trace.append({"tool": "_rewrite", "args": {}, "result": {"reason": "short or internal wording"}})
+                    continue
+                flagged = unverified_numbers(answer, outputs, question)
+                if flagged and not rechecked and step < MAX_STEPS:
+                    # Guardrail: figures that no tool returned get one automatic retry with the tools.
+                    rechecked = True
+                    note = RECHECK_NOTE.format(flagged=", ".join(flagged[:10]))
+                    contents.append(types.Content(role="user", parts=[types.Part(text=note)]))
+                    trace.append({"tool": "_recheck", "args": {}, "result": {"unverified": flagged[:10]}})
                     continue
                 return {"answer": answer, "trace": trace, "steps": step,
                         "unverified_numbers": unverified_numbers(answer, outputs, question),

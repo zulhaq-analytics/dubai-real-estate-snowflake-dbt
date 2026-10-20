@@ -138,7 +138,8 @@ def get_segment(area_display_name: str, property_type: str, room_category: str) 
 
 def find_segments(max_budget_aed: float, goal: str, room_category: str = "", property_type: str = "",
                   limit: int = 10) -> dict:
-    """Find area, property type and bedroom combinations whose median READY home price is within budget.
+    """For BUYING only: find area, property type and bedroom combinations whose median READY home price is within
+    a purchase budget. For renting questions use find_rentals instead.
     goal: 'rent_out' ranks by gross rental yield; 'price_growth' ranks by the change in median READY price per
     sqm over the last 12 months versus the previous 12 (past performance, NOT a forecast); 'live' ranks by
     median home size of all sales (most space
@@ -172,6 +173,31 @@ def find_segments(max_budget_aed: float, goal: str, room_category: str = "", pro
                ready_price_per_sqm_change_pct, rent_per_sqm_change_pct
         FROM seg WHERE {cond} ORDER BY {order} LIMIT {max(1, min(int(limit), MAX_ROWS))}""", params)
     return {"total_matches": total, "ranked_by": order.split()[0], "results": rows}
+
+
+def find_rentals(max_annual_rent_aed: float, room_category: str = "", property_type: str = "", limit: int = 10) -> dict:
+    """Find areas where a home can be RENTED within a yearly rent budget: area, property type and bedroom
+    combinations whose median annual rent of new leases in the last 12 months is at or below the budget.
+    Use this for renting questions ("I want to rent", "my rent budget is", "where can I live for X a year").
+    Ranked by number of new leases (busiest rental areas first). Rents per area are given in both sqm and sq ft.
+    max_annual_rent_aed: maximum yearly rent in AED. room_category and property_type are optional filters.
+    limit: number of results, at most 15. Only segments with at least 30 new leases are returned."""
+    err = _check(room_category, ROOMS, "room_category") or _check(property_type, TYPES, "property_type")
+    if err:
+        return err
+    where, params = ["rents_12m >= 30", "median_annual_rent_aed <= ?"], [float(max_annual_rent_aed)]
+    if room_category:
+        where.append("room_category = ?"); params.append(room_category)
+    if property_type:
+        where.append("property_type = ?"); params.append(property_type)
+    cond = " AND ".join(where)
+    total = _con.cursor().execute(f"SELECT count(*) FROM seg WHERE {cond}", params).fetchone()[0]
+    rows = _rows(f"""
+        SELECT area_display_name, property_type, room_category, rents_12m, median_annual_rent_aed,
+               median_rent_per_sqm_aed, round(median_rent_per_sqm_aed / 10.7639, 1) AS median_rent_per_sqft_aed,
+               rent_per_sqm_change_pct
+        FROM seg WHERE {cond} ORDER BY rents_12m DESC LIMIT {max(1, min(int(limit), MAX_ROWS))}""", params)
+    return {"total_matches": total, "ranked_by": "rents_12m", "results": rows}
 
 
 def get_area_trend(area_display_name: str) -> dict:
@@ -214,4 +240,4 @@ def get_market_forecast() -> dict:
     return {"series": out, "note": "Model forecast (exponential smoothing). Bounds show the model's uncertainty range."}
 
 
-TOOLS = [resolve_area, find_segments, get_segment, get_area_trend, get_market_forecast]
+TOOLS = [resolve_area, find_segments, find_rentals, get_segment, get_area_trend, get_market_forecast]
