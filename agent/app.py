@@ -1,4 +1,5 @@
-"""Dubai Property Advisor: Streamlit app (releases 6a-6c: chat, evidence and charts, usage protection).
+"""Dubai Property Advisor: Streamlit app (releases 6a-6d: chat, evidence and charts, usage protection,
+report and About tabs).
 
 The agent answers from Dubai Land Department open data, refreshed daily by the Oracle Cloud
 pipeline. Every figure comes from read-only tools; answers containing a figure that cannot be
@@ -16,6 +17,9 @@ import streamlit as st
 import agent
 
 MAX_QUESTIONS_PER_VISITOR = 10
+REPORT_URL = ("https://app.powerbi.com/view?r=eyJrIjoiN2FkZTRmYTQtOGY3ZC00YjA4LTg5ZTktZTY0MjY3NjVkMTc0IiwidCI6"
+              "ImEyYjYxNTdiLWZlM2ItNGRlZi05OTAzLTc4YTRlMmU5NTNhYiJ9")
+DATA_URL_PUBLIC = "https://data.dubai/en/entity-list?com_dda_issuingentity_details_issuingEntityIds=62035"
 DAILY_QUESTION_CAP = 100      # about 4 Gemini calls per question; the app's key allows 500 calls a day
 QUESTIONS_PER_MINUTE = 4      # keeps the whole app under the free limit of 15 calls a minute
 QUEUE_WAIT_SECONDS = 45
@@ -232,82 +236,114 @@ except Exception:
 st.title("Dubai Property Advisor")
 st.caption(f"Answers from Dubai Land Department open data · Data as of {advisor.as_of} · "
            "Information, not financial advice")
-st.info("Please don't enter personal information. Questions are processed by Google's Gemini API (free tier), "
-        "and Google may review them to improve its services.", icon="🔒")
 
-state = st.session_state
-if "messages" not in state:
-    state.messages, state.history, state.asked = [], [], 0
+tab_ask, tab_report, tab_about = st.tabs(["Ask the advisor", "Explore the report", "About"])
 
-for m in state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
-        if m.get("note"):
-            st.caption(m["note"])
-        if m.get("trace"):
-            render_visuals(m["trace"])
-
-clicked = None
-if not state.messages:
-    st.write("**Try one of these:**")
-    for i, example in enumerate(EXAMPLES):
-        if st.button(example, key=f"example_{i}", width="stretch"):
-            clicked = example
-
-prompt = st.chat_input("Ask about Dubai property prices, rents or yields…") or clicked
-
-if prompt:
-    if state.asked >= MAX_QUESTIONS_PER_VISITOR:
-        st.warning(f"You've reached the limit of {MAX_QUESTIONS_PER_VISITOR} questions for this visit. "
-                   "Thanks for trying the advisor!")
-        st.stop()
-
-    state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.chat_message("assistant"):
-        answer, note, trace = "", "", []
-        cache, cache_key = get_example_cache(), (prompt, advisor.as_of)
-        result = cache.get(cache_key) if (prompt in EXAMPLES and not state.history) else None
-
-        if result is None:
-            waiting = st.empty()
-            slot = take_slot(lambda: waiting.info("Many people are asking right now. "
-                                                  "Your question is in a short queue…", icon="⏳"))
-            waiting.empty()
-            if slot == "daily_cap":
-                answer = ("The advisor has reached its daily limit of free questions. "
-                          "Please come back tomorrow.")
-            elif slot == "busy":
-                answer = "The advisor is very busy right now. Please try again in a minute."
-            else:
-                with st.spinner("Checking the data…"):
-                    try:
-                        result = advisor.ask(prompt, history=state.history)
-                    except Exception:
-                        answer = "The AI service is busy right now. Please try again in a minute."
-                if result is not None and prompt in EXAMPLES and not state.history \
-                        and not result["unverified_numbers"]:
-                    cache[cache_key] = result
-
-        if result is not None:
-            answer, trace = result["answer"], result["trace"]
-            state.history = result["history"]
-            state.asked += 1
-            if result["unverified_numbers"]:
-                note = ("⚠️ Some figures in this answer could not be matched to the data: "
-                        + ", ".join(result["unverified_numbers"]) + ". Please treat them with caution.")
-
-        st.markdown(answer)
-        if note:
-            st.caption(note)
-        if trace:
-            render_visuals(trace)
-    state.messages.append({"role": "assistant", "content": answer, "note": note, "trace": trace})
-
+# Footer first in code so it always shows below the tabs, even if the chat stops early.
 st.divider()
-st.caption("Source: [Dubai Land Department open data on Data Dubai]"
-           "(https://data.dubai/en/entity-list?com_dda_issuingentity_details_issuingEntityIds=62035), "
+st.caption(f"Source: [Dubai Land Department open data on Data Dubai]({DATA_URL_PUBLIC}), "
            "used under the Data Dubai Open Data Licence. Independent project, not affiliated with or endorsed "
            "by Dubai Land Department or the Dubai Government. Built by Zia Malik.")
+
+with tab_report:
+    st.write("The full 11-page Power BI report on the same data, refreshed every morning.")
+    st.iframe(REPORT_URL, height=460)
+    st.markdown(f"[Open the report full screen in a new tab]({REPORT_URL})")
+
+with tab_about:
+    st.markdown(
+        "**What this is.** An AI assistant that answers questions about Dubai's residential property market "
+        "from Dubai Land Department open data: prices, rents, yields, trends and where a budget fits.\n\n"
+        "**How it works.** The AI never sees the raw data and is not allowed to work out numbers itself. "
+        "It can only call read-only tools that look up the data, and it must quote what they return. "
+        "Every number in an answer is checked against those results; if a figure cannot be traced, "
+        "the AI has to look it up and rewrite the answer. Charts and tables are drawn by code, not by the AI.\n\n"
+        "**How it is tested.** 113 test questions, including tricky ones (wrong premises, follow-ups, "
+        "Arabic, attempts to make it reveal its instructions, off-topic requests). The latest version "
+        "passed all 113.\n\n"
+        "**Limits.** Figures are medians for the last 12 months up to the data date, and small samples are "
+        "not published. It cannot predict which area's prices will rise. This is information, not financial "
+        "advice; please do your own due diligence.\n\n"
+        "**Privacy.** Questions are processed by Google's Gemini API (free tier) and may be reviewed by Google "
+        "to improve its services. Please don't enter personal information.\n\n"
+        "Built by Zia Malik."
+    )
+
+with tab_ask:
+    st.info("Please don't enter personal information. Questions are processed by Google's Gemini API "
+            "(free tier), and Google may review them to improve its services.", icon="🔒")
+
+    state = st.session_state
+    if "messages" not in state:
+        state.messages, state.history, state.asked = [], [], 0
+
+    chat_box = st.container()      # messages go here, so new answers appear above the input box
+    with chat_box:
+        for m in state.messages:
+            with st.chat_message(m["role"]):
+                st.markdown(m["content"])
+                if m.get("note"):
+                    st.caption(m["note"])
+                if m.get("trace"):
+                    render_visuals(m["trace"])
+
+        clicked = None
+        if not state.messages:
+            st.write("**Try one of these:**")
+            for i, example in enumerate(EXAMPLES):
+                if st.button(example, key=f"example_{i}", width="stretch"):
+                    clicked = example
+
+    prompt = st.chat_input("Ask about Dubai property prices, rents or yields…") or clicked
+
+    if prompt:
+        with chat_box:
+            if state.asked >= MAX_QUESTIONS_PER_VISITOR:
+                st.warning(f"You've reached the limit of {MAX_QUESTIONS_PER_VISITOR} questions for this visit. "
+                           "Thanks for trying the advisor!")
+                st.stop()
+
+            state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            with st.chat_message("assistant"):
+                answer, note, trace = "", "", []
+                cache, cache_key = get_example_cache(), (prompt, advisor.as_of)
+                result = cache.get(cache_key) if (prompt in EXAMPLES and not state.history) else None
+
+                if result is None:
+                    waiting = st.empty()
+                    slot = take_slot(lambda: waiting.info("Many people are asking right now. "
+                                                          "Your question is in a short queue…", icon="⏳"))
+                    waiting.empty()
+                    if slot == "daily_cap":
+                        answer = ("The advisor has reached its daily limit of free questions. "
+                                  "Please come back tomorrow. You can still explore the report tab.")
+                    elif slot == "busy":
+                        answer = "The advisor is very busy right now. Please try again in a minute."
+                    else:
+                        with st.spinner("Checking the data…"):
+                            try:
+                                result = advisor.ask(prompt, history=state.history)
+                            except Exception:
+                                answer = ("The AI service is busy right now. Please try again in a minute, "
+                                          "or explore the report tab meanwhile.")
+                        if result is not None and prompt in EXAMPLES and not state.history \
+                                and not result["unverified_numbers"]:
+                            cache[cache_key] = result
+
+                if result is not None:
+                    answer, trace = result["answer"], result["trace"]
+                    state.history = result["history"]
+                    state.asked += 1
+                    if result["unverified_numbers"]:
+                        note = ("⚠️ Some figures in this answer could not be matched to the data: "
+                                + ", ".join(result["unverified_numbers"]) + ". Please treat them with caution.")
+
+                st.markdown(answer)
+                if note:
+                    st.caption(note)
+                if trace:
+                    render_visuals(trace)
+            state.messages.append({"role": "assistant", "content": answer, "note": note, "trace": trace})
