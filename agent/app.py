@@ -6,8 +6,11 @@ pipeline. Every figure comes from read-only tools; answers containing a figure t
 traced to the data are flagged. Charts are drawn by code from the tool results, never by the AI.
 """
 import datetime as dt
+import json
 import threading
 import time
+import urllib.request
+import uuid
 from collections import deque
 
 import altair as alt
@@ -16,6 +19,7 @@ import streamlit as st
 
 import agent
 
+APP_VERSION = "2026-10-26 region gate + question log"
 MAX_QUESTIONS_PER_VISITOR = 10
 REPORT_URL = ("https://app.powerbi.com/view?r=eyJrIjoiN2FkZTRmYTQtOGY3ZC00YjA4LTg5ZTktZTY0MjY3NjVkMTc0IiwidCI6"
               "ImEyYjYxNTdiLWZlM2ItNGRlZi05OTAzLTc4YTRlMmU5NTNhYiJ9")
@@ -55,6 +59,9 @@ RESTRICTED_TIMEZONES = {
     "Europe/Zurich", "GB", "GB-Eire", "Iceland", "Indian/Mayotte", "Indian/Reunion", "MET", "Poland",
     "Portugal", "WET",
 }
+PRIVACY_NOTE = ("Please don't enter personal information. Questions are processed by Google's Gemini API "
+                "(free tier), and Google may review them to improve its services. Questions and answers are "
+                "saved anonymously (no names or IP addresses) to improve this advisor.")
 REGION_REASON = ("This free demo runs on Google's Gemini API free tier, which can't be offered to people in "
                  "the European Economic Area, the UK or Switzerland.")
 
@@ -105,6 +112,60 @@ def take_slot(on_wait) -> str:
             on_wait()
             waited = True
         time.sleep(2)
+
+
+# ------------------------------------------------------------------------------------------------
+# Anonymous question log: one JSON file per event in a private Oracle bucket, through a write-only
+# link (it cannot read or list anything). No names or IP addresses. Failures never affect the visitor.
+# ------------------------------------------------------------------------------------------------
+def _put_log(name: str, record: dict):
+    try:
+        req = urllib.request.Request(st.secrets["LOG_PAR_URL"] + name, method="PUT",
+                                     data=json.dumps(record, ensure_ascii=False, default=str).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=15).close()
+    except Exception as e:
+        print(f"LOG WRITE FAILED {name}: {type(e).__name__}: {e}", flush=True)
+
+
+def log_event(kind: str, record: dict):
+    """Write one log record in the background so the visitor never waits for it."""
+    now = dt.datetime.now(dt.timezone.utc)
+    record = {"type": kind, "time_utc": now.isoformat(timespec="seconds"), "app_version": APP_VERSION, **record}
+    name = f"{kind}/{now:%Y/%m/%d}/{now:%H%M%S}_{uuid.uuid4().hex[:8]}.json"
+    threading.Thread(target=_put_log, args=(name, record), daemon=True).start()
+
+
+@st.cache_resource
+def get_warmup_state():
+    return {"lock": threading.Lock(), "as_of": None}
+
+
+def warm_examples(advisor):
+    """Prepare the example answers once per data date, in the background, so they are ready for every
+    visitor (including those who can only read examples). About 12 Gemini calls per data date."""
+    state = get_warmup_state()
+    with state["lock"]:
+        if state["as_of"] == advisor.as_of:
+            return
+        state["as_of"] = advisor.as_of
+
+    cache = get_example_cache()      # fetched here: background threads have no Streamlit session
+    get_gate()
+
+    def run():
+        for example in EXAMPLES:
+            key = (example, advisor.as_of)
+            if key in cache or take_slot(lambda: None) != "ok":
+                continue
+            try:
+                result = advisor.ask(example)
+                if not result["unverified_numbers"]:
+                    cache[key] = result
+            except Exception as e:
+                print(f"WARMUP FAILED: {type(e).__name__}: {e}", flush=True)
+
+    threading.Thread(target=run, daemon=True).start()
 
 
 # ------------------------------------------------------------------------------------------------
@@ -246,6 +307,19 @@ def render_visuals(trace: list):
         st.caption("Medians over the last 12 months to the data date. Source: Dubai Land Department open data.")
 
 
+def feedback_widget(qid: str):
+    """👍/👎 under an answer; each rating is logged once, linked to the question by its id."""
+    key = f"fb_{qid}"
+
+    def on_change():
+        score = st.session_state.get(key)
+        if score is not None:
+            log_event("feedback", {"question_id": qid, "session_id": st.session_state.get("session_id"),
+                                   "rating": "up" if score == 1 else "down"})
+
+    st.feedback("thumbs", key=key, on_change=on_change)
+
+
 # ------------------------------------------------------------------------------------------------
 # Page
 # ------------------------------------------------------------------------------------------------
@@ -290,17 +364,18 @@ with tab_about:
         "Switzerland, because the free tier of Google's Gemini API can't serve those regions. Visitors "
         "there can read the example answers and explore the report.\n\n"
         "**Privacy.** Questions are processed by Google's Gemini API (free tier) and may be reviewed by Google "
-        "to improve its services. Please don't enter personal information.\n\n"
+        "to improve its services. Questions, answers and 👍/👎 ratings are saved anonymously (no names or IP "
+        "addresses) and used only to test and improve this advisor. Please don't enter personal information.\n\n"
         "Built by Zia Malik."
     )
 
 with tab_ask:
-    st.info("Please don't enter personal information. Questions are processed by Google's Gemini API "
-            "(free tier), and Google may review them to improve its services.", icon="🔒")
+    st.info(PRIVACY_NOTE, icon="🔒")
 
     state = st.session_state
     if "messages" not in state:
         state.messages, state.history, state.asked = [], [], 0
+        state.session_id = uuid.uuid4().hex[:12]
 
     if st.context.timezone in RESTRICTED_TIMEZONES:
         st.warning(REGION_REASON + " You can still read the example answers below and explore the full report "
@@ -324,6 +399,8 @@ with tab_ask:
             st.rerun()
         st.stop()
 
+    warm_examples(advisor)
+
     chat_box = st.container()      # messages go here, so new answers appear above the input box
     with chat_box:
         for m in state.messages:
@@ -333,6 +410,8 @@ with tab_ask:
                     st.caption(m["note"])
                 if m.get("trace"):
                     render_visuals(m["trace"])
+                if m.get("qid"):
+                    feedback_widget(m["qid"])
 
         clicked = None
         if not state.messages:
@@ -355,7 +434,8 @@ with tab_ask:
                 st.markdown(prompt)
 
             with st.chat_message("assistant"):
-                answer, note, trace = "", "", []
+                answer, note, trace, outcome = "", "", [], "error"
+                qid = uuid.uuid4().hex[:12]
                 cache, cache_key = get_example_cache(), (prompt, advisor.as_of)
                 result = cache.get(cache_key) if (prompt in EXAMPLES and not state.history) else None
 
@@ -364,6 +444,7 @@ with tab_ask:
                     slot = take_slot(lambda: waiting.info("Many people are asking right now. "
                                                           "Your question is in a short queue…", icon="⏳"))
                     waiting.empty()
+                    outcome = slot
                     if slot == "daily_cap":
                         answer = ("The advisor has reached its daily limit of free questions. "
                                   "Please come back tomorrow. You can still explore the report tab.")
@@ -374,13 +455,19 @@ with tab_ask:
                             try:
                                 result = advisor.ask(prompt, history=state.history)
                             except Exception:
+                                outcome = "error"
                                 answer = ("The AI service is busy right now. Please try again in a minute, "
                                           "or explore the report tab meanwhile.")
                         if result is not None and prompt in EXAMPLES and not state.history \
                                 and not result["unverified_numbers"]:
                             cache[cache_key] = result
 
+                elif result is not None:
+                    outcome = "cached_example"
+
                 if result is not None:
+                    if outcome != "cached_example":
+                        outcome = "answered"
                     answer, trace = result["answer"], result["trace"]
                     state.history = result["history"]
                     state.asked += 1
@@ -393,4 +480,18 @@ with tab_ask:
                     st.caption(note)
                 if trace:
                     render_visuals(trace)
-            state.messages.append({"role": "assistant", "content": answer, "note": note, "trace": trace})
+                tools_used = [t.get("tool") for t in trace]
+                log_event("question", {
+                    "question_id": qid, "session_id": state.session_id, "turn": state.asked,
+                    "question": prompt, "answer": answer, "outcome": outcome,
+                    "tools": [t for t in tools_used if not str(t).startswith("_")],
+                    "guardrail": [t for t in tools_used if str(t).startswith("_")],
+                    "unverified_numbers": result["unverified_numbers"] if result else [],
+                    "steps": result.get("steps") if result else None,
+                    "seconds": result.get("seconds") if result else None,
+                    "data_as_of": advisor.as_of,
+                })
+                if result is not None:
+                    feedback_widget(qid)
+            state.messages.append({"role": "assistant", "content": answer, "note": note, "trace": trace,
+                                   "qid": qid if result is not None else None})
