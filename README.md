@@ -6,7 +6,7 @@ I used 11 years of public data from the Dubai Land Department (DLD) and built th
 
 `DuckDB` · `dbt` · `Python` · `Power BI` · `SQL` · `DAX` · `Oracle Cloud` · `Linux` · `Gemini API` · `Streamlit` · `Snowflake (v1)`
 
-**[▶ Open the live report](https://app.powerbi.com/view?r=eyJrIjoiN2FkZTRmYTQtOGY3ZC00YjA4LTg5ZTktZTY0MjY3NjVkMTc0IiwidCI6ImEyYjYxNTdiLWZlM2ItNGRlZi05OTAzLTc4YTRlMmU5NTNhYiJ9)** · [Download the PDF](report/dubai_property_prospectus.pdf)
+**[▶ Open the live report](https://app.powerbi.com/view?r=eyJrIjoiN2FkZTRmYTQtOGY3ZC00YjA4LTg5ZTktZTY0MjY3NjVkMTc0IiwidCI6ImEyYjYxNTdiLWZlM2ItNGRlZi05OTAzLTc4YTRlMmU5NTNhYiJ9)** · **[💬 Ask the AI property advisor](https://dubai-property-advisor.streamlit.app/)** · [Download the PDF](report/dubai_property_prospectus.pdf)
 
 ![Cover](images/cover.png)
 
@@ -98,7 +98,7 @@ I kept one dbt project for both. Where Snowflake and DuckDB write SQL differentl
 | **What it costs** | What do homes cost, and how much more is off-plan? |
 | **What it earns** | How much rent can a landlord expect, after costs? |
 | **Where to rent** | Which areas and home sizes fit my rent budget? |
-| **Who builds** | Which developers build the most, and who finishes on time? |
+| **Who builds** | Which developers build the most, and which areas finish on time? |
 | **How fast it sells** | How quickly do new projects sell out? |
 | **How it's financed** | How many buyers use a mortgage, and how many pay cash? |
 | **Where it's heading** | What will the next 12 months look like? |
@@ -167,7 +167,11 @@ I also built a chat assistant that answers questions about the same data, such a
 
 I test it with 113 questions: 53 I wrote myself (facts, rankings, trends, forecasts, missing data, wrong premises, follow-ups, a question in Arabic, prompt-injection attempts, off-topic requests) and 60 generated at random from the data. The expected answers are computed from the same tables when the test runs, so the test stays valid as the data changes. The latest version passed all 113. In 2 answers the automatic check caught a figure that wasn't in the data, and the agent corrected it before answering.
 
-The app is private for now while I confirm the data licence terms with Dubai Data. The code and test results are in `agent/`.
+**[Try the advisor](https://dubai-property-advisor.streamlit.app/)**. The code and test results are in `agent/`.
+
+- **Free and limited.** It runs on the free tier of the Gemini API, so it allows 10 questions per visit and about 100 a day in total.
+- **Not available in the EEA, the UK or Switzerland.** Google's terms don't allow the free tier to serve those regions. Visitors whose browser time zone is there can read the example answers and explore the report, but can't ask their own questions. Everyone else confirms their location once per visit.
+- **Anonymous question log.** Questions, answers and 👍/👎 ratings are saved without names or IP addresses, through a link that can only write, never read. I use them to find weak answers and turn real questions into new test cases.
 
 ---
 
