@@ -1,0 +1,12 @@
+# Look and feel of the Dubai Property Advisor app, matched to the Power BI report.
+[theme]
+base = "light"
+primaryColor = "#1F6B4B"
+backgroundColor = "#F7F7F5"
+secondaryBackgroundColor = "#EAF1ED"
+textColor = "#1E2B3C"
+linkColor = "#1F6B4B"
+borderColor = "#D6DED9"
+showWidgetBorder = true
+baseRadius = "0.6rem"
+chartCategoricalColors = ["#1F6B4B", "#1B3A6B", "#7FB89A", "#9AA5B1"]
