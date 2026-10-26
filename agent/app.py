@@ -36,17 +36,29 @@ SOURCE_LABELS = {
     "get_market_forecast": "Citywide 12-month forecast",
 }
 
-st.set_page_config(page_title="Dubai Property Advisor", page_icon="🏙️", layout="centered")
+# Google's Gemini API terms: only paid services may be made available to users in the European
+# Economic Area, Switzerland or the United Kingdom. This demo runs on the free tier, so visitors whose
+# browser time zone is in those regions see example answers only (no live questions), and everyone
+# else confirms their location once per visit. Built from tzdata 2026.5 zone.tab (EU and EEA states,
+# their EU territories, UK, Switzerland and nearby dependencies, plus legacy aliases).
+RESTRICTED_TIMEZONES = {
+    "Africa/Ceuta", "America/Cayenne", "America/Guadeloupe", "America/Marigot", "America/Martinique",
+    "Arctic/Longyearbyen", "Asia/Famagusta", "Asia/Nicosia", "Atlantic/Azores", "Atlantic/Canary",
+    "Atlantic/Faeroe", "Atlantic/Faroe", "Atlantic/Jan_Mayen", "Atlantic/Madeira", "Atlantic/Reykjavik",
+    "CET", "EET", "Eire", "Europe/Amsterdam", "Europe/Athens", "Europe/Belfast", "Europe/Berlin",
+    "Europe/Bratislava", "Europe/Brussels", "Europe/Bucharest", "Europe/Budapest", "Europe/Busingen",
+    "Europe/Copenhagen", "Europe/Dublin", "Europe/Gibraltar", "Europe/Guernsey", "Europe/Helsinki",
+    "Europe/Isle_of_Man", "Europe/Jersey", "Europe/Lisbon", "Europe/Ljubljana", "Europe/London",
+    "Europe/Luxembourg", "Europe/Madrid", "Europe/Malta", "Europe/Mariehamn", "Europe/Nicosia", "Europe/Oslo",
+    "Europe/Paris", "Europe/Prague", "Europe/Riga", "Europe/Rome", "Europe/Sofia", "Europe/Stockholm",
+    "Europe/Tallinn", "Europe/Vaduz", "Europe/Vienna", "Europe/Vilnius", "Europe/Warsaw", "Europe/Zagreb",
+    "Europe/Zurich", "GB", "GB-Eire", "Iceland", "Indian/Mayotte", "Indian/Reunion", "MET", "Poland",
+    "Portugal", "WET",
+}
+REGION_REASON = ("This free demo runs on Google's Gemini API free tier, which can't be offered to people in "
+                 "the European Economic Area, the UK or Switzerland.")
 
-# TEMPORARY diagnostic (remove after the region test): logs what Streamlit Cloud reveals about where a
-# visitor connects from. Printed to the app logs only (Manage app), never shown on the page.
-if "diag_logged" not in st.session_state:
-    st.session_state.diag_logged = True
-    _h = st.context.headers
-    print("DIAG ip_address:", st.context.ip_address,
-          "| x-forwarded-for:", _h.get("X-Forwarded-For"),
-          "| cf-ipcountry:", _h.get("Cf-Ipcountry"),
-          "| header names:", sorted(_h.keys()), flush=True)
+st.set_page_config(page_title="Dubai Property Advisor", page_icon="🏙️", layout="centered")
 
 
 # ------------------------------------------------------------------------------------------------
@@ -274,6 +286,9 @@ with tab_about:
         "**Limits.** Figures are medians for the last 12 months up to the data date, and small samples are "
         "not published. It cannot predict which area's prices will rise. This is information, not financial "
         "advice; please do your own due diligence.\n\n"
+        "**Availability.** Live questions are not offered in the European Economic Area, the UK or "
+        "Switzerland, because the free tier of Google's Gemini API can't serve those regions. Visitors "
+        "there can read the example answers and explore the report.\n\n"
         "**Privacy.** Questions are processed by Google's Gemini API (free tier) and may be reviewed by Google "
         "to improve its services. Please don't enter personal information.\n\n"
         "Built by Zia Malik."
@@ -286,6 +301,28 @@ with tab_ask:
     state = st.session_state
     if "messages" not in state:
         state.messages, state.history, state.asked = [], [], 0
+
+    if st.context.timezone in RESTRICTED_TIMEZONES:
+        st.warning(REGION_REASON + " You can still read the example answers below and explore the full report "
+                   "in the next tab.", icon="🌍")
+        examples = get_example_cache()
+        for example in EXAMPLES:
+            with st.container(border=True):
+                st.markdown(f"**{example}**")
+                cached = examples.get((example, advisor.as_of))
+                if cached:
+                    st.markdown(cached["answer"])
+                    render_visuals(cached["trace"])
+                else:
+                    st.caption("This example answer isn't ready yet. Please check back later.")
+        st.stop()
+
+    if not state.get("region_ok"):
+        st.write(REGION_REASON)
+        if st.button("I'm not located in the EEA, the UK or Switzerland. Start", type="primary"):
+            state.region_ok = True
+            st.rerun()
+        st.stop()
 
     chat_box = st.container()      # messages go here, so new answers appear above the input box
     with chat_box:
