@@ -38,6 +38,16 @@ SOURCE_LABELS = {
 
 st.set_page_config(page_title="Dubai Property Advisor", page_icon="🏙️", layout="centered")
 
+# TEMPORARY diagnostic (remove after the region test): logs what Streamlit Cloud reveals about where a
+# visitor connects from. Printed to the app logs only (Manage app), never shown on the page.
+if "diag_logged" not in st.session_state:
+    st.session_state.diag_logged = True
+    _h = st.context.headers
+    print("DIAG ip_address:", st.context.ip_address,
+          "| x-forwarded-for:", _h.get("X-Forwarded-For"),
+          "| cf-ipcountry:", _h.get("Cf-Ipcountry"),
+          "| header names:", sorted(_h.keys()), flush=True)
+
 
 # ------------------------------------------------------------------------------------------------
 # Shared resources (one copy for all visitors)
