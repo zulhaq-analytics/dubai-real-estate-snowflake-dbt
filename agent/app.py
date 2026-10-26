@@ -32,6 +32,7 @@ EXAMPLES = [
     "How have prices and rents moved in JVC?",
     "Compare 2-bedroom apartments in Dubai Marina and Business Bay.",
 ]
+AVATARS = {"user": ":material/person:", "assistant": ":material/apartment:"}
 SOURCE_LABELS = {
     "get_segment": "Figures for one area and home type",
     "find_segments": "Ranking of areas within the budget",
@@ -329,9 +330,14 @@ except Exception:
     st.error("The advisor could not load its data right now. Please try again in a few minutes.")
     st.stop()
 
-st.title("Dubai Property Advisor")
-st.caption(f"Answers from Dubai Land Department open data · Data as of {advisor.as_of} · "
-           "Information, not financial advice")
+st.markdown(f"""
+<div style="background:#1F6B4B;color:#FFFFFF;padding:1.4rem 1.6rem;border-radius:0.8rem;margin-bottom:0.6rem">
+  <div style="font-size:2rem;font-weight:700;line-height:1.2">Dubai Property Advisor</div>
+  <div style="margin-top:0.45rem;opacity:0.9">Ask about prices, rents and yields across Dubai's residential market.</div>
+  <div style="margin-top:0.35rem;font-size:0.85rem;opacity:0.75">Dubai Land Department open data · Data as of {advisor.as_of}
+    · Information, not financial advice</div>
+</div>
+""", unsafe_allow_html=True)
 
 tab_ask, tab_report, tab_about = st.tabs(["Ask the advisor", "Explore the report", "About"])
 
@@ -404,7 +410,7 @@ with tab_ask:
     chat_box = st.container()      # messages go here, so new answers appear above the input box
     with chat_box:
         for m in state.messages:
-            with st.chat_message(m["role"]):
+            with st.chat_message(m["role"], avatar=AVATARS[m["role"]]):
                 st.markdown(m["content"])
                 if m.get("note"):
                     st.caption(m["note"])
@@ -430,10 +436,10 @@ with tab_ask:
                 st.stop()
 
             state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
+            with st.chat_message("user", avatar=AVATARS["user"]):
                 st.markdown(prompt)
 
-            with st.chat_message("assistant"):
+            with st.chat_message("assistant", avatar=AVATARS["assistant"]):
                 answer, note, trace, outcome = "", "", [], "error"
                 qid = uuid.uuid4().hex[:12]
                 cache, cache_key = get_example_cache(), (prompt, advisor.as_of)
